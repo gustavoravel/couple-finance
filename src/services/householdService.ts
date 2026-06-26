@@ -89,3 +89,13 @@ export async function getHousehold(householdId: string): Promise<Household | nul
 export async function updateHouseholdName(householdId: string, name: string): Promise<void> {
   await updateDoc(doc(db, 'households', householdId), { name })
 }
+
+export async function getMemberProfiles(
+  memberUids: string[],
+): Promise<Array<{ uid: string; name: string }>> {
+  const profiles = await Promise.all(memberUids.map((uid) => getUserProfile(uid)))
+  return memberUids.map((uid, i) => ({
+    uid,
+    name: profiles[i]?.displayName || profiles[i]?.email || 'Membro',
+  }))
+}

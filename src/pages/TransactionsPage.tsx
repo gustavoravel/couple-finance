@@ -1,96 +1,132 @@
 import { useMemo, useState } from 'react'
-import { ArrowDownLeft, ArrowUpRight, Trash2 } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Trash2 } from 'lucide-react'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { deleteTransaction } from '@/services/transactionService'
+import { deleteTransfer } from '@/services/transferService'
+import { FilterBar } from '@/components/filters/FilterBar'
 import { Card } from '@/components/ui/Card'
 import { formatCurrency, formatDate } from '@/lib/format'
-import type { Transaction } from '@/types'
+import { defaultFilters, mergeAndSort } from '@/lib/transactionFilters'
+import type { Transaction, Transfer } from '@/types'
 
 export function TransactionsPage() {
-  const { household, categories, transactions } = useHousehold()
-  const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all')
+  const { household, accounts, categories, transactions, transfers, members } = useHousehold()
+  const [filters, setFilters] = useState(defaultFilters)
 
-  const filtered = useMemo(() => {
-    if (filter === 'all') return transactions
-    return transactions.filter((t) => t.type === filter)
-  }, [transactions, filter])
+  const items = useMemo(
+    () => mergeAndSort(transactions, transfers, filters),
+    [transactions, transfers, filters],
+  )
 
-  const handleDelete = async (tx: Transaction) => {
+  const handleDeleteTx = async (tx: Transaction) => {
     if (!household || !confirm('Excluir este lançamento?')) return
     await deleteTransaction(household.id, tx)
+  }
+
+  const handleDeleteTransfer = async (tr: Transfer) => {
+    if (!household || !confirm('Excluir esta transferência?')) return
+    await deleteTransfer(household.id, tr)
   }
 
   const getCategoryName = (categoryId: string) =>
     categories.find((c) => c.id === categoryId)?.name ?? 'Sem categoria'
 
+  const getAccountName = (accountId: string) =>
+    accounts.find((a) => a.id === accountId)?.name ?? 'Conta'
+
+  const getMemberName = (uid: string) =>
+    members.find((m) => m.uid === uid)?.name ?? ''
+
   return (
     <div className="flex flex-col gap-4">
       <header>
         <h1 className="text-xl font-bold text-gray-900">Lançamentos</h1>
-        <p className="text-sm text-gray-500">{filtered.length} registros</p>
+        <p className="text-sm text-gray-500">{items.length} registros</p>
       </header>
 
-      <div className="flex gap-2">
-        {(['all', 'income', 'expense'] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={[
-              'px-4 py-2 rounded-xl text-sm font-medium transition-colors',
-              filter === f ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200',
-            ].join(' ')}
-          >
-            {f === 'all' ? 'Todos' : f === 'income' ? 'Entradas' : 'Saídas'}
-          </button>
-        ))}
-      </div>
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        categories={categories}
+        accounts={accounts}
+        members={members}
+      />
 
       <div className="flex flex-col gap-2">
-        {filtered.length === 0 && (
+        {items.length === 0 && (
           <Card>
-            <p className="text-center text-gray-400 py-8">Nenhum lançamento ainda</p>
+            <p className="text-center text-gray-400 py-8">Nenhum registro no período</p>
           </Card>
         )}
-        {filtered.map((tx) => (
-          <Card key={tx.id} padding="sm" className="flex items-center gap-3">
-            <div
-              className={[
-                'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-                tx.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500',
-              ].join(' ')}
-            >
-              {tx.type === 'income' ? (
-                <ArrowDownLeft className="w-5 h-5" />
-              ) : (
-                <ArrowUpRight className="w-5 h-5" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 truncate">
-                {tx.description || getCategoryName(tx.categoryId)}
+        {items.map((item) =>
+          item.kind === 'transfer' ? (
+            <Card key={`tr-${item.data.id}`} padding="sm" className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-primary-50 text-primary">
+                <ArrowLeftRight className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 truncate">
+                  {item.data.description || 'Transferência'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {getAccountName(item.data.fromAccountId)} → {getAccountName(item.data.toAccountId)}
+                  {' · '}{formatDate(item.data.date)}
+                  {getMemberName(item.data.createdBy) && ` · ${getMemberName(item.data.createdBy)}`}
+                </p>
+              </div>
+              <p className="font-semibold shrink-0 text-primary">
+                {formatCurrency(item.data.amount)}
               </p>
-              <p className="text-xs text-gray-400">
-                {getCategoryName(tx.categoryId)} · {formatDate(tx.date)}
-                {tx.status === 'pending' && ' · Previsto'}
+              <button
+                onClick={() => handleDeleteTransfer(item.data)}
+                className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                aria-label="Excluir"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </Card>
+          ) : (
+            <Card key={`tx-${item.data.id}`} padding="sm" className="flex items-center gap-3">
+              <div
+                className={[
+                  'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                  item.data.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500',
+                ].join(' ')}
+              >
+                {item.data.type === 'income' ? (
+                  <ArrowDownLeft className="w-5 h-5" />
+                ) : (
+                  <ArrowUpRight className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 truncate">
+                  {item.data.description || getCategoryName(item.data.categoryId)}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {getCategoryName(item.data.categoryId)} · {formatDate(item.data.date)}
+                  {item.data.status === 'pending' && ' · Previsto'}
+                  {getMemberName(item.data.createdBy) && ` · ${getMemberName(item.data.createdBy)}`}
+                </p>
+              </div>
+              <p
+                className={[
+                  'font-semibold shrink-0',
+                  item.data.type === 'income' ? 'text-green-600' : 'text-red-500',
+                ].join(' ')}
+              >
+                {item.data.type === 'income' ? '+' : '-'}{formatCurrency(item.data.amount)}
               </p>
-            </div>
-            <p
-              className={[
-                'font-semibold shrink-0',
-                tx.type === 'income' ? 'text-green-600' : 'text-red-500',
-              ].join(' ')}
-            >
-              {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
-            </p>
-            <button
-              onClick={() => handleDelete(tx)}
-              className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-              aria-label="Excluir"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </Card>
-        ))}
+              <button
+                onClick={() => handleDeleteTx(item.data)}
+                className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                aria-label="Excluir"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </Card>
+          ),
+        )}
       </div>
     </div>
   )
