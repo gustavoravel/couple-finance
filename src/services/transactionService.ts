@@ -6,6 +6,7 @@ import {
   orderBy,
   query,
   setDoc,
+  updateDoc,
   where,
   type Unsubscribe,
 } from 'firebase/firestore'
@@ -68,6 +69,14 @@ export async function createTransaction(
   }
 
   return ref.id
+}
+
+export async function updateTransaction(
+  householdId: string,
+  transactionId: string,
+  data: Partial<Transaction>,
+): Promise<void> {
+  await updateDoc(doc(db, 'households', householdId, 'transactions', transactionId), data)
 }
 
 export interface CardTransactionInput {

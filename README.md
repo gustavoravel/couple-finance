@@ -21,12 +21,12 @@ npm run dev
 ## Firebase — configuração inicial
 
 1. No [Firebase Console](https://console.firebase.google.com), ative **Authentication** com E-mail/Senha e Google.
-2. Crie um banco **Firestore** (modo produção).
+2. Crie um banco **Firestore** (modo produção) e ative **Storage**.
 3. Adicione `localhost` em **Authentication → Settings → Authorized domains**.
 4. Faça deploy das regras:
 
 ```bash
-npx firebase-tools deploy --only firestore:rules
+npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage
 ```
 
 ## Scripts
@@ -38,20 +38,22 @@ npx firebase-tools deploy --only firestore:rules
 | `npm run preview` | Preview do build |
 | `npx firebase-tools deploy --only hosting` | Deploy no Firebase Hosting |
 
-## Funcionalidades (Fases 0–4)
+## Funcionalidades (Fases 0–5)
 
 - Login com e-mail/senha e Google
 - Criação/entrada em lar compartilhado (código de convite)
 - Seed automático de categorias da planilha "Meu Bolso em Dia"
 - Contas com saldo e transferências entre contas
-- Lançamentos de entrada/saída (efetivados ou previstos)
+- Lançamentos com anexo de comprovante (JPG, PNG, WebP, PDF)
 - Cartões de crédito com faturas, parcelamento e pagamento de fatura
 - Metas com progresso, reserva de emergência e orçamento por categoria
+- Recorrências automáticas (salário, contas fixas)
+- Lembretes de vencimento de faturas via notificação do navegador
 - Dashboard com saldo, entradas × saídas, pizza por categoria, faturas em aberto
 - Filtros por período, categoria, conta, cartão e pessoa
 - Painel mensal com "quanto sobra" e gráfico anual
-- PWA instalável com cache offline do Firestore
+- PWA instalável com cache offline do Firestore e banner offline
 
 ## Próximas fases
 
-Ver `plano-pwa-financas-casal.md` — recorrências, anexos, relatórios e exportação.
+Ver `plano-pwa-financas-casal.md` — relatórios avançados, exportação CSV/PDF, importação da planilha.

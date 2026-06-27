@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Trash2 } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Paperclip, Trash2 } from 'lucide-react'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { deleteTransaction } from '@/services/transactionService'
 import { deleteTransfer } from '@/services/transferService'
@@ -123,6 +123,17 @@ export function TransactionsPage() {
               >
                 {item.data.type === 'income' ? '+' : '-'}{formatCurrency(item.data.amount)}
               </p>
+              {item.data.attachmentUrl && (
+                <a
+                  href={item.data.attachmentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 text-gray-400 hover:text-primary transition-colors"
+                  aria-label="Ver comprovante"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </a>
+              )}
               <button
                 onClick={() => handleDeleteTx(item.data)}
                 className="p-2 text-gray-300 hover:text-red-500 transition-colors"

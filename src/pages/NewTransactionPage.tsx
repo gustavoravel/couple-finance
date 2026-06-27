@@ -5,8 +5,11 @@ import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
-import { createTransaction, createCardTransaction } from '@/services/transactionService'
+import { createTransaction, createCardTransaction, updateTransaction } from '@/services/transactionService'
 import { createTransfer } from '@/services/transferService'
+import { createRecurrence } from '@/services/recurrenceService'
+import { uploadAttachment } from '@/services/storageService'
+import { initialNextRunDate } from '@/lib/recurrenceUtils'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -60,6 +63,8 @@ export function NewTransactionPage() {
   const [mode, setMode] = useState<EntryMode>('expense')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [attachment, setAttachment] = useState<File | null>(null)
+  const [saveAsRecurrence, setSaveAsRecurrence] = useState(false)
 
   const txForm = useForm<TxFormData>({
     resolver: zodResolver(txSchema),
@@ -118,10 +123,12 @@ export function NewTransactionPage() {
     setError('')
     setLoading(true)
     try {
+      let txId: string | undefined
+
       if (data.paymentMethod === 'card') {
         const card = cards.find((c) => c.id === data.cardId)
         if (!card) throw new Error('Cartão não encontrado')
-        await createCardTransaction(household.id, card, {
+        const ids = await createCardTransaction(household.id, card, {
           type: 'expense',
           amount: data.amount,
           date: data.date,
@@ -133,8 +140,9 @@ export function NewTransactionPage() {
           createdBy: user.uid,
           installments: data.installments ?? 1,
         })
+        txId = ids[0]
       } else {
-        await createTransaction(household.id, {
+        txId = await createTransaction(household.id, {
           type: data.type,
           amount: data.amount,
           date: data.date,
@@ -147,6 +155,33 @@ export function NewTransactionPage() {
           createdBy: user.uid,
         })
       }
+
+      if (attachment && txId) {
+        const url = await uploadAttachment(household.id, txId, attachment)
+        await updateTransaction(household.id, txId, { attachmentUrl: url })
+      }
+
+      if (saveAsRecurrence && data.paymentMethod === 'account') {
+        const [, , day] = data.date.split('-').map(Number)
+        await createRecurrence(household.id, {
+          template: {
+            type: data.type,
+            amount: data.amount,
+            categoryId: data.categoryId,
+            subcategoryId: data.subcategoryId,
+            description: data.description ?? (categories.find((c) => c.id === data.categoryId)?.name ?? 'Recorrente'),
+            paymentMethod: 'account',
+            accountId: data.accountId,
+            status: data.status,
+          },
+          frequency: 'monthly',
+          dayOfMonth: day,
+          nextRunDate: initialNextRunDate('monthly', day),
+          active: true,
+          createdBy: user.uid,
+        })
+      }
+
       navigate('/lancamentos')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao salvar lançamento')
@@ -333,6 +368,34 @@ export function NewTransactionPage() {
               ]}
               {...txForm.register('status')}
             />
+
+            {paymentMethod === 'account' && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveAsRecurrence}
+                  onChange={(e) => setSaveAsRecurrence(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-gray-700">Repetir mensalmente (criar recorrência)</span>
+              </label>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Comprovante (opcional)
+              </label>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                onChange={(e) => setAttachment(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary-50 file:text-primary file:font-medium"
+              />
+              {attachment && (
+                <p className="text-xs text-gray-400 mt-1">{attachment.name}</p>
+              )}
+            </div>
+
             {error && <p className="text-sm text-red-500">{error}</p>}
             <Button
               type="submit"

@@ -13,6 +13,7 @@ import { MonthlyPanelPage } from '@/pages/MonthlyPanelPage'
 import { CardsPage } from '@/pages/CardsPage'
 import { CardDetailPage } from '@/pages/CardDetailPage'
 import { GoalsPage } from '@/pages/GoalsPage'
+import { RecurrencesPage } from '@/pages/RecurrencesPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 
 function LoadingScreen() {
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="cartoes/:cardId" element={<CardDetailPage />} />
               <Route path="painel" element={<MonthlyPanelPage />} />
               <Route path="metas" element={<GoalsPage />} />
+              <Route path="recorrencias" element={<RecurrencesPage />} />
               <Route path="ajustes" element={<SettingsPage />} />
             </Route>
 

@@ -12,6 +12,8 @@ export interface UserProfile {
   preferences?: {
     theme?: 'light' | 'dark'
     defaultAccountId?: string
+    notificationsEnabled?: boolean
+    reminderDaysBefore?: number
   }
 }
 
@@ -130,4 +132,29 @@ export interface Budget {
   competencia: string
   recurring: boolean
   plannedAmount: number
+}
+
+export type RecurrenceFrequency = 'monthly' | 'weekly' | 'yearly'
+
+export interface RecurrenceTemplate {
+  type: TransactionType
+  amount: number
+  categoryId: string
+  subcategoryId?: string
+  description: string
+  paymentMethod: PaymentMethod
+  accountId?: string
+  cardId?: string
+  status: TransactionStatus
+}
+
+export interface Recurrence {
+  id: string
+  template: RecurrenceTemplate
+  frequency: RecurrenceFrequency
+  dayOfMonth?: number
+  dayOfWeek?: number
+  nextRunDate: string
+  active: boolean
+  createdBy: string
 }

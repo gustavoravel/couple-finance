@@ -9,7 +9,8 @@ import { subscribeCards } from '@/services/cardService'
 import { subscribeInvoices } from '@/services/invoiceService'
 import { subscribeGoals } from '@/services/goalService'
 import { subscribeBudgets } from '@/services/budgetService'
-import type { Account, Budget, Category, CreditCard, Goal, Household, Invoice, Transaction, Transfer } from '@/types'
+import { subscribeRecurrences } from '@/services/recurrenceService'
+import type { Account, Budget, Category, CreditCard, Goal, Household, Invoice, Recurrence, Transaction, Transfer } from '@/types'
 
 export interface MemberInfo {
   uid: string
@@ -24,6 +25,7 @@ interface HouseholdContextValue {
   invoices: Invoice[]
   goals: Goal[]
   budgets: Budget[]
+  recurrences: Recurrence[]
   transactions: Transaction[]
   transfers: Transfer[]
   members: MemberInfo[]
@@ -42,6 +44,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
+  const [recurrences, setRecurrences] = useState<Recurrence[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [transfers, setTransfers] = useState<Transfer[]>([])
   const [members, setMembers] = useState<MemberInfo[]>([])
@@ -58,6 +61,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       setInvoices([])
       setGoals([])
       setBudgets([])
+      setRecurrences([])
       setTransactions([])
       setTransfers([])
       setMembers([])
@@ -81,6 +85,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     const unsubInvoices = subscribeInvoices(householdId, setInvoices)
     const unsubGoals = subscribeGoals(householdId, setGoals)
     const unsubBudgets = subscribeBudgets(householdId, setBudgets)
+    const unsubRecurrences = subscribeRecurrences(householdId, setRecurrences)
     const unsubTransactions = subscribeTransactions(householdId, setTransactions)
     const unsubTransfers = subscribeTransfers(householdId, setTransfers)
 
@@ -91,6 +96,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       unsubInvoices()
       unsubGoals()
       unsubBudgets()
+      unsubRecurrences()
       unsubTransactions()
       unsubTransfers()
     }
@@ -119,6 +125,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         invoices,
         goals,
         budgets,
+        recurrences,
         transactions,
         transfers,
         members,
