@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
-import { createTransaction } from '@/services/transactionService'
+import { createTransaction, createCardTransaction } from '@/services/transactionService'
 import { createTransfer } from '@/services/transferService'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -22,8 +22,21 @@ const txSchema = z.object({
   description: z.string().optional(),
   categoryId: z.string().min(1, 'Selecione uma categoria'),
   subcategoryId: z.string().optional(),
-  accountId: z.string().min(1, 'Selecione uma conta'),
+  paymentMethod: z.enum(['account', 'card']),
+  accountId: z.string().optional(),
+  cardId: z.string().optional(),
+  installments: z.coerce.number().int().min(1).max(48).optional(),
   status: z.enum(['paid', 'pending']),
+}).superRefine((data, ctx) => {
+  if (data.paymentMethod === 'account' && !data.accountId) {
+    ctx.addIssue({ code: 'custom', message: 'Selecione uma conta', path: ['accountId'] })
+  }
+  if (data.paymentMethod === 'card' && !data.cardId) {
+    ctx.addIssue({ code: 'custom', message: 'Selecione um cartão', path: ['cardId'] })
+  }
+  if (data.type === 'income' && data.paymentMethod === 'card') {
+    ctx.addIssue({ code: 'custom', message: 'Entradas não usam cartão', path: ['paymentMethod'] })
+  }
 })
 
 const transferSchema = z.object({
@@ -42,7 +55,7 @@ type TransferFormData = z.infer<typeof transferSchema>
 
 export function NewTransactionPage() {
   const { user } = useAuth()
-  const { household, accounts, categories } = useHousehold()
+  const { household, accounts, cards, categories } = useHousehold()
   const navigate = useNavigate()
   const [mode, setMode] = useState<EntryMode>('expense')
   const [error, setError] = useState('')
@@ -54,7 +67,10 @@ export function NewTransactionPage() {
       type: 'expense',
       date: toISODate(new Date()),
       status: 'paid',
+      paymentMethod: 'account',
       accountId: accounts[0]?.id ?? '',
+      cardId: cards[0]?.id ?? '',
+      installments: 1,
     },
   })
 
@@ -69,6 +85,7 @@ export function NewTransactionPage() {
 
   const txType = txForm.watch('type')
   const categoryId = txForm.watch('categoryId')
+  const paymentMethod = txForm.watch('paymentMethod')
 
   const filteredCategories = useMemo(
     () => categories.filter((c) => c.kind === (txType === 'income' ? 'income' : 'expense')),
@@ -82,6 +99,7 @@ export function NewTransactionPage() {
   }))
 
   const accountOptions = accounts.map((a) => ({ value: a.id, label: a.name }))
+  const cardOptions = cards.map((c) => ({ value: c.id, label: c.name }))
 
   const switchMode = (m: EntryMode) => {
     setMode(m)
@@ -89,6 +107,9 @@ export function NewTransactionPage() {
     if (m !== 'transfer') {
       txForm.setValue('type', m)
       txForm.setValue('categoryId', '')
+      if (m === 'income') {
+        txForm.setValue('paymentMethod', 'account')
+      }
     }
   }
 
@@ -97,21 +118,38 @@ export function NewTransactionPage() {
     setError('')
     setLoading(true)
     try {
-      await createTransaction(household.id, {
-        type: data.type,
-        amount: data.amount,
-        date: data.date,
-        description: data.description ?? '',
-        categoryId: data.categoryId,
-        subcategoryId: data.subcategoryId,
-        paymentMethod: 'account',
-        accountId: data.accountId,
-        status: data.status,
-        createdBy: user.uid,
-      })
+      if (data.paymentMethod === 'card') {
+        const card = cards.find((c) => c.id === data.cardId)
+        if (!card) throw new Error('Cartão não encontrado')
+        await createCardTransaction(household.id, card, {
+          type: 'expense',
+          amount: data.amount,
+          date: data.date,
+          description: data.description ?? '',
+          categoryId: data.categoryId,
+          subcategoryId: data.subcategoryId,
+          cardId: card.id,
+          status: data.status,
+          createdBy: user.uid,
+          installments: data.installments ?? 1,
+        })
+      } else {
+        await createTransaction(household.id, {
+          type: data.type,
+          amount: data.amount,
+          date: data.date,
+          description: data.description ?? '',
+          categoryId: data.categoryId,
+          subcategoryId: data.subcategoryId,
+          paymentMethod: 'account',
+          accountId: data.accountId,
+          status: data.status,
+          createdBy: user.uid,
+        })
+      }
       navigate('/lancamentos')
-    } catch {
-      setError('Erro ao salvar lançamento')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao salvar lançamento')
     } finally {
       setLoading(false)
     }
@@ -241,12 +279,52 @@ export function NewTransactionPage() {
                 {...txForm.register('subcategoryId')}
               />
             )}
-            <Select
-              label="Conta"
-              options={accountOptions.length ? accountOptions : [{ value: '', label: 'Nenhuma conta' }]}
-              error={txForm.formState.errors.accountId?.message}
-              {...txForm.register('accountId')}
-            />
+
+            {txType === 'expense' && (
+              <>
+                <Select
+                  label="Forma de pagamento"
+                  options={[
+                    { value: 'account', label: 'Conta / débito' },
+                    { value: 'card', label: 'Cartão de crédito' },
+                  ]}
+                  error={txForm.formState.errors.paymentMethod?.message}
+                  {...txForm.register('paymentMethod')}
+                />
+                {paymentMethod === 'card' && (
+                  <>
+                    <Select
+                      label="Cartão"
+                      options={
+                        cardOptions.length
+                          ? cardOptions
+                          : [{ value: '', label: 'Cadastre um cartão primeiro' }]
+                      }
+                      error={txForm.formState.errors.cardId?.message}
+                      {...txForm.register('cardId')}
+                    />
+                    <Input
+                      label="Parcelas"
+                      type="number"
+                      min="1"
+                      max="48"
+                      error={txForm.formState.errors.installments?.message}
+                      {...txForm.register('installments')}
+                    />
+                  </>
+                )}
+              </>
+            )}
+
+            {(txType === 'income' || paymentMethod === 'account') && (
+              <Select
+                label="Conta"
+                options={accountOptions.length ? accountOptions : [{ value: '', label: 'Nenhuma conta' }]}
+                error={txForm.formState.errors.accountId?.message}
+                {...txForm.register('accountId')}
+              />
+            )}
+
             <Select
               label="Status"
               options={[
@@ -256,7 +334,16 @@ export function NewTransactionPage() {
               {...txForm.register('status')}
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <Button type="submit" fullWidth size="lg" disabled={loading || accounts.length === 0}>
+            <Button
+              type="submit"
+              fullWidth
+              size="lg"
+              disabled={
+                loading ||
+                (paymentMethod === 'account' && accounts.length === 0) ||
+                (paymentMethod === 'card' && cards.length === 0)
+              }
+            >
               {loading ? 'Salvando...' : 'Salvar lançamento'}
             </Button>
           </form>

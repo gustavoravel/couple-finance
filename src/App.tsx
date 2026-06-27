@@ -10,6 +10,9 @@ import { TransactionsPage } from '@/pages/TransactionsPage'
 import { NewTransactionPage } from '@/pages/NewTransactionPage'
 import { AccountsPage } from '@/pages/AccountsPage'
 import { MonthlyPanelPage } from '@/pages/MonthlyPanelPage'
+import { CardsPage } from '@/pages/CardsPage'
+import { CardDetailPage } from '@/pages/CardDetailPage'
+import { GoalsPage } from '@/pages/GoalsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 
 function LoadingScreen() {
@@ -71,7 +74,10 @@ export default function App() {
               <Route path="lancamentos" element={<TransactionsPage />} />
               <Route path="novo" element={<NewTransactionPage />} />
               <Route path="contas" element={<AccountsPage />} />
+              <Route path="cartoes" element={<CardsPage />} />
+              <Route path="cartoes/:cardId" element={<CardDetailPage />} />
               <Route path="painel" element={<MonthlyPanelPage />} />
+              <Route path="metas" element={<GoalsPage />} />
               <Route path="ajustes" element={<SettingsPage />} />
             </Route>
 

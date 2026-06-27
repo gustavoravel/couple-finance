@@ -50,6 +50,7 @@ export interface Account {
   color: string
   icon: string
   archived: boolean
+  emergencyTargetMonths?: number
 }
 
 export interface Transaction {
@@ -70,6 +71,34 @@ export interface Transaction {
   createdBy: string
   tags?: string[]
   attachmentUrl?: string
+}
+
+export interface CreditCard {
+  id: string
+  name: string
+  brand: string
+  limit: number
+  closingDay: number
+  dueDay: number
+  paymentAccountId: string
+  ownerUid: string | 'shared'
+  color: string
+  icon: string
+}
+
+export type InvoiceStatus = 'open' | 'closed' | 'paid'
+
+export interface Invoice {
+  id: string
+  cardId: string
+  competencia: string
+  closingDate: string
+  dueDate: string
+  total: number
+  status: InvoiceStatus
+  paidAt?: string
+  paidFromAccountId?: string
+  paymentTransferId?: string
 }
 
 export interface Transfer {

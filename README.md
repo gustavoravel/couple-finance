@@ -38,17 +38,20 @@ npx firebase-tools deploy --only firestore:rules
 | `npm run preview` | Preview do build |
 | `npx firebase-tools deploy --only hosting` | Deploy no Firebase Hosting |
 
-## Funcionalidades (Fase 0 + MVP)
+## Funcionalidades (Fases 0–4)
 
 - Login com e-mail/senha e Google
 - Criação/entrada em lar compartilhado (código de convite)
 - Seed automático de categorias da planilha "Meu Bolso em Dia"
-- Contas com saldo
+- Contas com saldo e transferências entre contas
 - Lançamentos de entrada/saída (efetivados ou previstos)
-- Dashboard com saldo, entradas × saídas, pizza por categoria
+- Cartões de crédito com faturas, parcelamento e pagamento de fatura
+- Metas com progresso, reserva de emergência e orçamento por categoria
+- Dashboard com saldo, entradas × saídas, pizza por categoria, faturas em aberto
+- Filtros por período, categoria, conta, cartão e pessoa
 - Painel mensal com "quanto sobra" e gráfico anual
 - PWA instalável com cache offline do Firestore
 
 ## Próximas fases
 
-Ver `plano-pwa-financas-casal.md` — transferências, cartões/faturas, metas, recorrências, relatórios.
+Ver `plano-pwa-financas-casal.md` — recorrências, anexos, relatórios e exportação.

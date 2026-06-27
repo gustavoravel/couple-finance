@@ -5,7 +5,11 @@ import { subscribeAccounts } from '@/services/accountService'
 import { subscribeCategories } from '@/services/categoryService'
 import { subscribeTransactions } from '@/services/transactionService'
 import { subscribeTransfers } from '@/services/transferService'
-import type { Account, Category, Household, Transaction, Transfer } from '@/types'
+import { subscribeCards } from '@/services/cardService'
+import { subscribeInvoices } from '@/services/invoiceService'
+import { subscribeGoals } from '@/services/goalService'
+import { subscribeBudgets } from '@/services/budgetService'
+import type { Account, Budget, Category, CreditCard, Goal, Household, Invoice, Transaction, Transfer } from '@/types'
 
 export interface MemberInfo {
   uid: string
@@ -16,6 +20,10 @@ interface HouseholdContextValue {
   household: Household | null
   accounts: Account[]
   categories: Category[]
+  cards: CreditCard[]
+  invoices: Invoice[]
+  goals: Goal[]
+  budgets: Budget[]
   transactions: Transaction[]
   transfers: Transfer[]
   members: MemberInfo[]
@@ -30,6 +38,10 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   const [household, setHousehold] = useState<Household | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [cards, setCards] = useState<CreditCard[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [goals, setGoals] = useState<Goal[]>([])
+  const [budgets, setBudgets] = useState<Budget[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [transfers, setTransfers] = useState<Transfer[]>([])
   const [members, setMembers] = useState<MemberInfo[]>([])
@@ -42,6 +54,10 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       setHousehold(null)
       setAccounts([])
       setCategories([])
+      setCards([])
+      setInvoices([])
+      setGoals([])
+      setBudgets([])
       setTransactions([])
       setTransfers([])
       setMembers([])
@@ -61,12 +77,20 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
 
     const unsubAccounts = subscribeAccounts(householdId, setAccounts)
     const unsubCategories = subscribeCategories(householdId, setCategories)
+    const unsubCards = subscribeCards(householdId, setCards)
+    const unsubInvoices = subscribeInvoices(householdId, setInvoices)
+    const unsubGoals = subscribeGoals(householdId, setGoals)
+    const unsubBudgets = subscribeBudgets(householdId, setBudgets)
     const unsubTransactions = subscribeTransactions(householdId, setTransactions)
     const unsubTransfers = subscribeTransfers(householdId, setTransfers)
 
     return () => {
       unsubAccounts()
       unsubCategories()
+      unsubCards()
+      unsubInvoices()
+      unsubGoals()
+      unsubBudgets()
       unsubTransactions()
       unsubTransfers()
     }
@@ -91,6 +115,10 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         household,
         accounts,
         categories,
+        cards,
+        invoices,
+        goals,
+        budgets,
         transactions,
         transfers,
         members,

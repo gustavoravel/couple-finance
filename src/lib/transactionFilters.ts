@@ -12,6 +12,7 @@ export interface FilterState {
   endDate: string
   categoryId: string
   accountId: string
+  cardId: string
   createdBy: string
   type: TypeFilter
 }
@@ -26,6 +27,7 @@ export function defaultFilters(): FilterState {
     endDate: '',
     categoryId: '',
     accountId: '',
+    cardId: '',
     createdBy: '',
     type: 'all',
   }
@@ -48,6 +50,7 @@ export function filterTransactions(transactions: Transaction[], filters: FilterS
     if (!inPeriod(t.date, filters)) return false
     if (filters.categoryId && t.categoryId !== filters.categoryId) return false
     if (filters.accountId && t.accountId !== filters.accountId) return false
+    if (filters.cardId && t.cardId !== filters.cardId) return false
     if (filters.createdBy && t.createdBy !== filters.createdBy) return false
     if (filters.type === 'income' && t.type !== 'income') return false
     if (filters.type === 'expense' && t.type !== 'expense') return false

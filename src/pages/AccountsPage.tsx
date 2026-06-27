@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Wallet } from 'lucide-react'
+import { Plus, Wallet, Shield } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { createAccount } from '@/services/accountService'
@@ -27,6 +27,7 @@ export function AccountsPage() {
   const [name, setName] = useState('')
   const [type, setType] = useState<AccountType>('checking')
   const [initialBalance, setInitialBalance] = useState('0')
+  const [emergencyTargetMonths, setEmergencyTargetMonths] = useState('6')
   const [loading, setLoading] = useState(false)
 
   const handleCreate = async () => {
@@ -43,6 +44,9 @@ export function AccountsPage() {
       color: accountColors[accounts.length % accountColors.length],
       icon: 'wallet',
       archived: false,
+      ...(type === 'emergency_reserve' && {
+        emergencyTargetMonths: parseInt(emergencyTargetMonths, 10) || 6,
+      }),
     })
     setName('')
     setInitialBalance('0')
@@ -85,6 +89,16 @@ export function AccountsPage() {
               value={initialBalance}
               onChange={(e) => setInitialBalance(e.target.value)}
             />
+            {type === 'emergency_reserve' && (
+              <Input
+                label="Meta (meses de despesa)"
+                type="number"
+                min="1"
+                max="24"
+                value={emergencyTargetMonths}
+                onChange={(e) => setEmergencyTargetMonths(e.target.value)}
+              />
+            )}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</Button>
               <Button fullWidth onClick={handleCreate} disabled={loading || !name.trim()}>
@@ -113,11 +127,19 @@ export function AccountsPage() {
               <p className="font-medium text-gray-900">{account.name}</p>
               <p className="text-xs text-gray-400">
                 {accountTypes.find((t) => t.value === account.type)?.label}
+                {account.type === 'emergency_reserve' && account.emergencyTargetMonths && (
+                  <> · Meta {account.emergencyTargetMonths} meses</>
+                )}
               </p>
             </div>
-            <p className={`font-semibold ${account.currentBalance >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
-              {formatCurrency(account.currentBalance)}
-            </p>
+            <div className="text-right shrink-0">
+              {account.type === 'emergency_reserve' && (
+                <Shield className="w-4 h-4 text-amber-500 ml-auto mb-0.5" />
+              )}
+              <p className={`font-semibold ${account.currentBalance >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
+                {formatCurrency(account.currentBalance)}
+              </p>
+            </div>
           </Card>
         ))}
       </div>

@@ -10,7 +10,7 @@ import { defaultFilters, mergeAndSort } from '@/lib/transactionFilters'
 import type { Transaction, Transfer } from '@/types'
 
 export function TransactionsPage() {
-  const { household, accounts, categories, transactions, transfers, members } = useHousehold()
+  const { household, accounts, categories, cards, transactions, transfers, members } = useHousehold()
   const [filters, setFilters] = useState(defaultFilters)
 
   const items = useMemo(
@@ -49,6 +49,7 @@ export function TransactionsPage() {
         onChange={setFilters}
         categories={categories}
         accounts={accounts}
+        cards={cards}
         members={members}
       />
 
@@ -104,8 +105,13 @@ export function TransactionsPage() {
                   {item.data.description || getCategoryName(item.data.categoryId)}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {getCategoryName(item.data.categoryId)} · {formatDate(item.data.date)}
+                  {getCategoryName(item.data.categoryId)}
+                  {item.data.paymentMethod === 'card' && item.data.cardId && (
+                    <> · {cards.find((c) => c.id === item.data.cardId)?.name ?? 'Cartão'}</>
+                  )}
+                  {' · '}{formatDate(item.data.date)}
                   {item.data.status === 'pending' && ' · Previsto'}
+                  {item.data.installment && ` · ${item.data.installment.current}/${item.data.installment.total}x`}
                   {getMemberName(item.data.createdBy) && ` · ${getMemberName(item.data.createdBy)}`}
                 </p>
               </div>

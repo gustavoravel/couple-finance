@@ -1,0 +1,69 @@
+import type { CreditCard } from '@/types'
+
+export function getInvoiceCompetencia(purchaseDate: string, closingDay: number): string {
+  const [year, month, day] = purchaseDate.split('-').map(Number)
+  let compYear = year
+  let compMonth = month
+
+  if (day > closingDay) {
+    compMonth += 1
+    if (compMonth > 12) {
+      compMonth = 1
+      compYear += 1
+    }
+  }
+
+  return `${compYear}-${String(compMonth).padStart(2, '0')}`
+}
+
+export function addMonthsToCompetencia(competencia: string, months: number): string {
+  const [year, month] = competencia.split('-').map(Number)
+  const date = new Date(year, month - 1 + months, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function clampDay(year: number, month: number, day: number): number {
+  const lastDay = new Date(year, month, 0).getDate()
+  return Math.min(day, lastDay)
+}
+
+export function getClosingDate(competencia: string, closingDay: number): string {
+  const [year, month] = competencia.split('-').map(Number)
+  const day = clampDay(year, month, closingDay)
+  return `${competencia}-${String(day).padStart(2, '0')}`
+}
+
+export function getDueDate(competencia: string, dueDay: number): string {
+  const [year, month] = competencia.split('-').map(Number)
+  let dueYear = year
+  let dueMonth = month + 1
+  if (dueMonth > 12) {
+    dueMonth = 1
+    dueYear += 1
+  }
+  const day = clampDay(dueYear, dueMonth, dueDay)
+  return `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+export function formatCompetencia(competencia: string): string {
+  const [year, month] = competencia.split('-').map(Number)
+  const date = new Date(year, month - 1, 1)
+  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+}
+
+export function getCardUsedLimit(
+  invoices: Array<{ cardId: string; total: number; status: string }>,
+  cardId: string,
+): number {
+  return invoices
+    .filter((inv) => inv.cardId === cardId && inv.status !== 'paid')
+    .reduce((sum, inv) => sum + inv.total, 0)
+}
+
+export function buildInvoiceDates(competencia: string, card: CreditCard) {
+  return {
+    competencia,
+    closingDate: getClosingDate(competencia, card.closingDay),
+    dueDate: getDueDate(competencia, card.dueDay),
+  }
+}

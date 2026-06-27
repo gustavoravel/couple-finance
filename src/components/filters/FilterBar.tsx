@@ -2,7 +2,7 @@ import { Filter } from 'lucide-react'
 import { useState } from 'react'
 import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
-import type { Account, Category } from '@/types'
+import type { Account, Category, CreditCard } from '@/types'
 import type { FilterState, PeriodMode, TypeFilter } from '@/lib/transactionFilters'
 
 interface MemberOption {
@@ -15,6 +15,7 @@ interface FilterBarProps {
   onChange: (filters: FilterState) => void
   categories: Category[]
   accounts: Account[]
+  cards?: CreditCard[]
   members: MemberOption[]
   showTypeFilter?: boolean
 }
@@ -24,6 +25,7 @@ export function FilterBar({
   onChange,
   categories,
   accounts,
+  cards = [],
   members,
   showTypeFilter = true,
 }: FilterBarProps) {
@@ -124,6 +126,17 @@ export function FilterBar({
             value={filters.accountId}
             onChange={(e) => set('accountId', e.target.value)}
           />
+          {cards.length > 0 && (
+            <Select
+              label="Cartão"
+              options={[
+                { value: '', label: 'Todos' },
+                ...cards.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              value={filters.cardId}
+              onChange={(e) => set('cardId', e.target.value)}
+            />
+          )}
           {members.length > 1 && (
             <Select
               label="Pessoa"
