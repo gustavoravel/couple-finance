@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { createHousehold, joinHousehold } from '@/services/householdService'
 import { Button } from '@/components/ui/Button'
@@ -8,7 +9,8 @@ import { Card } from '@/components/ui/Card'
 type Mode = 'choose' | 'create' | 'join'
 
 export function HouseholdSetupPage() {
-  const { user } = useAuth()
+  const { user, refreshProfile } = useAuth()
+  const navigate = useNavigate()
   const [mode, setMode] = useState<Mode>('choose')
   const [householdName, setHouseholdName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
@@ -21,9 +23,11 @@ export function HouseholdSetupPage() {
     setLoading(true)
     try {
       await createHousehold(user.uid, householdName.trim())
-      window.location.href = '/'
-    } catch {
-      setError('Erro ao criar o lar')
+      await refreshProfile()
+      navigate('/', { replace: true })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Erro desconhecido'
+      setError(`Erro ao criar o lar: ${message}`)
     } finally {
       setLoading(false)
     }
@@ -35,7 +39,8 @@ export function HouseholdSetupPage() {
     setLoading(true)
     try {
       await joinHousehold(user.uid, inviteCode.trim())
-      window.location.href = '/'
+      await refreshProfile()
+      navigate('/', { replace: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao entrar no lar')
     } finally {

@@ -32,18 +32,22 @@ export async function createHousehold(uid: string, name: string): Promise<string
     createdAt: new Date().toISOString(),
   }
 
-  const batch = writeBatch(db)
-  batch.set(householdRef, household)
-  batch.set(doc(db, 'inviteCodes', inviteCode), { householdId: householdRef.id })
-  batch.set(doc(db, 'users', uid), { householdId: householdRef.id }, { merge: true })
+  // Household, invite e perfil primeiro — as rules de subcoleção exigem que o lar já exista
+  // (get() nas rules não enxerga writes do mesmo batch).
+  const initBatch = writeBatch(db)
+  initBatch.set(householdRef, household)
+  initBatch.set(doc(db, 'inviteCodes', inviteCode), { householdId: householdRef.id })
+  initBatch.set(doc(db, 'users', uid), { householdId: householdRef.id }, { merge: true })
+  await initBatch.commit()
 
   const categories = buildCategorySeed()
+  const catBatch = writeBatch(db)
   for (const cat of categories) {
     const catRef = doc(collection(db, 'households', householdRef.id, 'categories'))
-    batch.set(catRef, cat)
+    catBatch.set(catRef, cat)
   }
+  await catBatch.commit()
 
-  await batch.commit()
   return householdRef.id
 }
 
