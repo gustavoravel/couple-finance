@@ -38,7 +38,7 @@ npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage
 | `npm run preview` | Preview do build |
 | `npx firebase-tools deploy --only hosting` | Deploy no Firebase Hosting |
 
-## Funcionalidades (Fases 0–5)
+## Funcionalidades
 
 - Login com e-mail/senha e Google
 - Criação/entrada em lar compartilhado (código de convite)
@@ -52,8 +52,5 @@ npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage
 - Dashboard com saldo, entradas × saídas, pizza por categoria, faturas em aberto
 - Filtros por período, categoria, conta, cartão e pessoa
 - Painel mensal com "quanto sobra" e gráfico anual
+- Relatórios avançados com exportação CSV/PDF e importação de planilha CSV
 - PWA instalável com cache offline do Firestore e banner offline
-
-## Próximas fases
-
-Ver `plano-pwa-financas-casal.md` — relatórios avançados, exportação CSV/PDF, importação da planilha.

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, List, Plus, CreditCard, Target, CalendarDays, Settings, Wallet } from 'lucide-react'
+import { Home, List, Plus, CreditCard, Target, CalendarDays, Settings, Wallet, FileBarChart } from 'lucide-react'
 
 const navItems = [
   { to: '/', icon: Home, label: 'Início' },
@@ -50,6 +50,7 @@ export function SideNav() {
   const items = [
     ...navItems.filter((i) => !i.isFab),
     { to: '/painel', icon: CalendarDays, label: 'Painel' },
+    { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
     { to: '/contas', icon: Wallet, label: 'Contas' },
     { to: '/ajustes', icon: Settings, label: 'Ajustes' },
   ]

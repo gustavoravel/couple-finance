@@ -1,4 +1,4 @@
-import { Bell, ChevronRight, Copy, LogOut, RefreshCw } from 'lucide-react'
+import { Bell, ChevronRight, Copy, FileBarChart, LogOut, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
@@ -111,6 +111,19 @@ export function SettingsPage() {
           <div className="flex-1">
             <p className="font-medium text-gray-900">Recorrências</p>
             <p className="text-xs text-gray-400">Salários, contas fixas e lançamentos automáticos</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-300" />
+        </Card>
+      </Link>
+
+      <Link to="/relatorios">
+        <Card padding="sm" className="flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary flex items-center justify-center shrink-0">
+            <FileBarChart className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium text-gray-900">Relatórios</p>
+            <p className="text-xs text-gray-400">Exportar CSV/PDF e importar planilha</p>
           </div>
           <ChevronRight className="w-4 h-4 text-gray-300" />
         </Card>
