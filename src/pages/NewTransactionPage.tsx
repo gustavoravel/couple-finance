@@ -16,7 +16,7 @@ import { Select } from '@/components/ui/Select'
 import { Card } from '@/components/ui/Card'
 import { toISODate } from '@/lib/format'
 
-type EntryMode = 'expense' | 'income' | 'transfer'
+type EntryMode = 'expense' | 'income' | 'transfer' | 'investment'
 
 const txSchema = z.object({
   type: z.enum(['income', 'expense']),
@@ -92,10 +92,10 @@ export function NewTransactionPage() {
   const categoryId = txForm.watch('categoryId')
   const paymentMethod = txForm.watch('paymentMethod')
 
-  const filteredCategories = useMemo(
-    () => categories.filter((c) => c.kind === (txType === 'income' ? 'income' : 'expense')),
-    [categories, txType],
-  )
+  const filteredCategories = useMemo(() => {
+    if (mode === 'investment') return categories.filter((c) => c.kind === 'investment')
+    return categories.filter((c) => c.kind === (txType === 'income' ? 'income' : 'expense'))
+  }, [categories, txType, mode])
 
   const selectedCategory = categories.find((c) => c.id === categoryId)
   const subcategoryOptions = (selectedCategory?.subcategories ?? []).map((s) => ({
@@ -110,9 +110,9 @@ export function NewTransactionPage() {
     setMode(m)
     setError('')
     if (m !== 'transfer') {
-      txForm.setValue('type', m)
+      txForm.setValue('type', m === 'investment' ? 'expense' : m)
       txForm.setValue('categoryId', '')
-      if (m === 'income') {
+      if (m === 'income' || m === 'investment') {
         txForm.setValue('paymentMethod', 'account')
       }
     }
@@ -218,10 +218,11 @@ export function NewTransactionPage() {
         <h1 className="text-xl font-bold text-gray-900">Novo lançamento</h1>
       </header>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {([
           { key: 'expense' as const, label: 'Saída', active: 'bg-red-500 text-white' },
           { key: 'income' as const, label: 'Entrada', active: 'bg-green-500 text-white' },
+          { key: 'investment' as const, label: 'Investimento', active: 'bg-blue-600 text-white' },
           { key: 'transfer' as const, label: 'Transferência', active: 'bg-primary text-white' },
         ]).map(({ key, label, active }) => (
           <button
@@ -315,7 +316,7 @@ export function NewTransactionPage() {
               />
             )}
 
-            {txType === 'expense' && (
+            {txType === 'expense' && mode !== 'investment' && (
               <>
                 <Select
                   label="Forma de pagamento"
@@ -351,7 +352,7 @@ export function NewTransactionPage() {
               </>
             )}
 
-            {(txType === 'income' || paymentMethod === 'account') && (
+            {(txType === 'income' || paymentMethod === 'account' || mode === 'investment') && (
               <Select
                 label="Conta"
                 options={accountOptions.length ? accountOptions : [{ value: '', label: 'Nenhuma conta' }]}

@@ -106,7 +106,8 @@ export interface Invoice {
 export interface Transfer {
   id: string
   fromAccountId: string
-  toAccountId: string
+  toAccountId?: string
+  cardId?: string
   amount: number
   date: string
   description: string

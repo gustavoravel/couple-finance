@@ -10,11 +10,11 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Card } from '@/components/ui/Card'
 import { formatCurrency, formatDate } from '@/lib/format'
-import type { RecurrenceFrequency, TransactionType } from '@/types'
+import type { RecurrenceFrequency, TransactionType, PaymentMethod } from '@/types'
 
 export function RecurrencesPage() {
   const { user } = useAuth()
-  const { household, accounts, categories, recurrences } = useHousehold()
+  const { household, accounts, cards, categories, recurrences } = useHousehold()
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -22,7 +22,9 @@ export function RecurrencesPage() {
   const [type, setType] = useState<TransactionType>('expense')
   const [amount, setAmount] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('account')
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  const [cardId, setCardId] = useState(cards[0]?.id ?? '')
   const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly')
   const [dayOfMonth, setDayOfMonth] = useState(String(new Date().getDate()))
   const [dayOfWeek, setDayOfWeek] = useState(String(new Date().getDay()))
@@ -31,7 +33,9 @@ export function RecurrencesPage() {
   const filteredCategories = categories.filter((c) => c.kind === (type === 'income' ? 'income' : 'expense'))
 
   const handleCreate = async () => {
-    if (!household || !user || !name.trim() || !amount || !categoryId || !accountId) return
+    if (!household || !user || !name.trim() || !amount || !categoryId) return
+    if (paymentMethod === 'account' && !accountId) return
+    if (paymentMethod === 'card' && !cardId) return
     setLoading(true)
 
     const dayMonth = parseInt(dayOfMonth, 10)
@@ -48,8 +52,8 @@ export function RecurrencesPage() {
         amount: parseFloat(amount),
         categoryId,
         description: name.trim(),
-        paymentMethod: 'account',
-        accountId,
+        paymentMethod,
+        ...(paymentMethod === 'account' ? { accountId } : { cardId }),
         status,
       },
       frequency,
@@ -128,12 +132,36 @@ export function RecurrencesPage() {
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
             />
-            <Select
-              label="Conta"
-              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-            />
+            {type === 'expense' && (
+              <Select
+                label="Forma de pagamento"
+                options={[
+                  { value: 'account', label: 'Conta / débito' },
+                  { value: 'card', label: 'Cartão de crédito' },
+                ]}
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              />
+            )}
+            {type === 'expense' && paymentMethod === 'card' ? (
+              <Select
+                label="Cartão"
+                options={
+                  cards.length
+                    ? cards.map((c) => ({ value: c.id, label: c.name }))
+                    : [{ value: '', label: 'Cadastre um cartão primeiro' }]
+                }
+                value={cardId}
+                onChange={(e) => setCardId(e.target.value)}
+              />
+            ) : (
+              <Select
+                label="Conta"
+                options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+              />
+            )}
             <Select
               label="Frequência"
               options={[
@@ -188,6 +216,10 @@ export function RecurrencesPage() {
         )}
         {recurrences.map((rec) => {
           const cat = categories.find((c) => c.id === rec.template.categoryId)
+          const paymentLabel =
+            rec.template.paymentMethod === 'card'
+              ? cards.find((c) => c.id === rec.template.cardId)?.name ?? 'Cartão'
+              : accounts.find((a) => a.id === rec.template.accountId)?.name ?? 'Conta'
           return (
             <Card key={rec.id} padding="sm">
               <div className="flex items-start gap-3">
@@ -212,7 +244,7 @@ export function RecurrencesPage() {
                     </button>
                   </div>
                   <p className="text-xs text-gray-400">
-                    {cat?.name} · {scheduleLabel(rec)}
+                    {cat?.name} · {paymentLabel} · {scheduleLabel(rec)}
                   </p>
                   <p className="text-xs text-gray-400">
                     Próximo: {formatDate(rec.nextRunDate)}

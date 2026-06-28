@@ -3,10 +3,12 @@ import { BottomNav, SideNav } from '@/components/layout/BottomNav'
 import { OfflineBanner } from '@/components/layout/OfflineBanner'
 import { useRecurrenceProcessor } from '@/hooks/useRecurrenceProcessor'
 import { useDueReminders } from '@/hooks/useDueReminders'
+import { useInvoiceProcessor } from '@/hooks/useInvoiceProcessor'
 
 export function AppLayout() {
   useRecurrenceProcessor()
   useDueReminders()
+  useInvoiceProcessor()
 
   return (
     <div className="min-h-screen bg-surface flex">

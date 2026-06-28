@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Home, List, Plus, CreditCard, Target, CalendarDays, Settings, Wallet, FileBarChart } from 'lucide-react'
+import { Home, List, Plus, CreditCard, Menu, CalendarDays, Settings, Wallet, FileBarChart, Target } from 'lucide-react'
 
 const navItems = [
   { to: '/', icon: Home, label: 'Início' },
   { to: '/lancamentos', icon: List, label: 'Lançamentos' },
   { to: '/novo', icon: Plus, label: 'Novo', isFab: true },
-  { to: '/metas', icon: Target, label: 'Metas' },
   { to: '/cartoes', icon: CreditCard, label: 'Cartões' },
+  { to: '/mais', icon: Menu, label: 'Mais' },
 ]
 
 export function BottomNav() {
@@ -50,6 +50,7 @@ export function SideNav() {
   const items = [
     ...navItems.filter((i) => !i.isFab),
     { to: '/painel', icon: CalendarDays, label: 'Painel' },
+    { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
     { to: '/contas', icon: Wallet, label: 'Contas' },
     { to: '/ajustes', icon: Settings, label: 'Ajustes' },

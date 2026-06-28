@@ -30,7 +30,10 @@ export async function createTransfer(
   householdId: string,
   data: Omit<Transfer, 'id'>,
 ): Promise<string> {
-  if (data.fromAccountId === data.toAccountId) {
+  if (data.kind !== 'transfer') {
+    throw new Error('Use createInvoicePayment para pagamento de fatura')
+  }
+  if (!data.toAccountId || data.fromAccountId === data.toAccountId) {
     throw new Error('Contas de origem e destino devem ser diferentes')
   }
 
@@ -43,11 +46,44 @@ export async function createTransfer(
   return ref.id
 }
 
+export interface InvoicePaymentInput {
+  fromAccountId: string
+  cardId: string
+  amount: number
+  date: string
+  description: string
+  createdBy: string
+}
+
+export async function createInvoicePayment(
+  householdId: string,
+  data: InvoicePaymentInput,
+): Promise<string> {
+  const ref = doc(collection(db, 'households', householdId, 'transfers'))
+  await setDoc(ref, {
+    fromAccountId: data.fromAccountId,
+    cardId: data.cardId,
+    amount: data.amount,
+    date: data.date,
+    description: data.description,
+    createdBy: data.createdBy,
+    kind: 'invoice_payment',
+  })
+
+  await updateAccountBalance(householdId, data.fromAccountId, -data.amount)
+
+  return ref.id
+}
+
 export async function deleteTransfer(householdId: string, transfer: Transfer): Promise<void> {
   await deleteDoc(doc(db, 'households', householdId, 'transfers', transfer.id))
 
-  if (transfer.kind === 'transfer') {
+  if (transfer.kind === 'transfer' && transfer.toAccountId) {
     await updateAccountBalance(householdId, transfer.fromAccountId, transfer.amount)
     await updateAccountBalance(householdId, transfer.toAccountId, -transfer.amount)
+  }
+
+  if (transfer.kind === 'invoice_payment') {
+    await updateAccountBalance(householdId, transfer.fromAccountId, transfer.amount)
   }
 }

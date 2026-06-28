@@ -70,7 +70,8 @@ export function TransactionsPage() {
                   {item.data.description || 'Transferência'}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {getAccountName(item.data.fromAccountId)} → {getAccountName(item.data.toAccountId)}
+                  {getAccountName(item.data.fromAccountId)}
+                  {item.data.toAccountId ? ` → ${getAccountName(item.data.toAccountId)}` : ''}
                   {' · '}{formatDate(item.data.date)}
                   {getMemberName(item.data.createdBy) && ` · ${getMemberName(item.data.createdBy)}`}
                 </p>

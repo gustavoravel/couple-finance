@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { buildInvoiceDates } from '@/lib/invoiceUtils'
-import { updateAccountBalance } from '@/services/accountService'
+import { createInvoicePayment } from '@/services/transferService'
 import type { CreditCard, Invoice } from '@/types'
 
 export function subscribeInvoices(
@@ -98,25 +98,35 @@ export async function payInvoice(
     throw new Error('Fatura sem valor a pagar')
   }
 
-  const transferRef = doc(collection(db, 'households', householdId, 'transfers'))
-  await setDoc(transferRef, {
+  const transferId = await createInvoicePayment(householdId, {
     fromAccountId: card.paymentAccountId,
-    toAccountId: card.paymentAccountId,
+    cardId: card.id,
     amount: invoice.total,
     date: paymentDate,
     description: `Pagamento fatura ${card.name}`,
     createdBy,
-    kind: 'invoice_payment',
   })
-
-  await updateAccountBalance(householdId, card.paymentAccountId, -invoice.total)
 
   await updateDoc(doc(db, 'households', householdId, 'invoices', invoice.id), {
     status: 'paid',
     paidAt: paymentDate,
     paidFromAccountId: card.paymentAccountId,
-    paymentTransferId: transferRef.id,
+    paymentTransferId: transferId,
   })
+}
+
+export async function closeDueInvoices(householdId: string, invoices: Invoice[]): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10)
+  let closed = 0
+
+  for (const inv of invoices) {
+    if (inv.status === 'open' && inv.closingDate <= today) {
+      await updateDoc(doc(db, 'households', householdId, 'invoices', inv.id), { status: 'closed' })
+      closed++
+    }
+  }
+
+  return closed
 }
 
 export async function getInvoice(

@@ -1,7 +1,7 @@
 import {
   collection,
   doc,
-  getDoc,
+  increment,
   onSnapshot,
   orderBy,
   query,
@@ -48,9 +48,7 @@ export async function updateAccountBalance(
   accountId: string,
   delta: number,
 ): Promise<void> {
-  const ref = doc(db, 'households', householdId, 'accounts', accountId)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return
-  const current = snap.data().currentBalance as number
-  await updateDoc(ref, { currentBalance: current + delta })
+  await updateDoc(doc(db, 'households', householdId, 'accounts', accountId), {
+    currentBalance: increment(delta),
+  })
 }

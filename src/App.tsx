@@ -16,6 +16,7 @@ import { GoalsPage } from '@/pages/GoalsPage'
 import { RecurrencesPage } from '@/pages/RecurrencesPage'
 import { ReportsPage } from '@/pages/ReportsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { MorePage } from '@/pages/MorePage'
 
 function LoadingScreen() {
   return (
@@ -82,6 +83,7 @@ export default function App() {
               <Route path="metas" element={<GoalsPage />} />
               <Route path="recorrencias" element={<RecurrencesPage />} />
               <Route path="relatorios" element={<ReportsPage />} />
+              <Route path="mais" element={<MorePage />} />
               <Route path="ajustes" element={<SettingsPage />} />
             </Route>
 
