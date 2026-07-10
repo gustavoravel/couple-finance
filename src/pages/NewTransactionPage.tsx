@@ -9,7 +9,8 @@ import { createTransaction, createCardTransaction, updateTransaction } from '@/s
 import { createTransfer } from '@/services/transferService'
 import { createRecurrence } from '@/services/recurrenceService'
 import { uploadAttachment } from '@/services/storageService'
-import { initialNextRunDate } from '@/lib/recurrenceUtils'
+import { advanceRunDate } from '@/lib/recurrenceUtils'
+import type { Recurrence } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -163,6 +164,15 @@ export function NewTransactionPage() {
 
       if (saveAsRecurrence && data.paymentMethod === 'account') {
         const [, , day] = data.date.split('-').map(Number)
+        const recurrenceBase = {
+          id: '',
+          template: {} as Recurrence['template'],
+          frequency: 'monthly' as const,
+          dayOfMonth: day,
+          nextRunDate: data.date,
+          active: true,
+          createdBy: '',
+        }
         await createRecurrence(household.id, {
           template: {
             type: data.type,
@@ -176,7 +186,8 @@ export function NewTransactionPage() {
           },
           frequency: 'monthly',
           dayOfMonth: day,
-          nextRunDate: initialNextRunDate('monthly', day),
+          // First occurrence already created as the transaction above — schedule next month
+          nextRunDate: advanceRunDate(data.date, recurrenceBase),
           active: true,
           createdBy: user.uid,
         })

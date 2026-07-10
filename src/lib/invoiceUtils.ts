@@ -22,9 +22,17 @@ export function addMonthsToCompetencia(competencia: string, months: number): str
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
-function clampDay(year: number, month: number, day: number): number {
+export function clampDay(year: number, month: number, day: number): number {
   const lastDay = new Date(year, month, 0).getDate()
   return Math.min(day, lastDay)
+}
+
+/** Date for a card installment in the invoice competência month (keeps purchase day-of-month). */
+export function dateInCompetencia(competencia: string, purchaseDate: string): string {
+  const [, , purchaseDay] = purchaseDate.split('-').map(Number)
+  const [year, month] = competencia.split('-').map(Number)
+  const day = clampDay(year, month, purchaseDay)
+  return `${competencia}-${String(day).padStart(2, '0')}`
 }
 
 export function getClosingDate(competencia: string, closingDay: number): string {

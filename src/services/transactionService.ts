@@ -13,7 +13,7 @@ import {
 import { db } from '@/lib/firebase'
 import { updateAccountBalance } from '@/services/accountService'
 import { addToInvoiceTotal, getOrCreateInvoice } from '@/services/invoiceService'
-import { addMonthsToCompetencia, getInvoiceCompetencia } from '@/lib/invoiceUtils'
+import { addMonthsToCompetencia, dateInCompetencia, getInvoiceCompetencia } from '@/lib/invoiceUtils'
 import type { CreditCard, Transaction } from '@/types'
 
 export function subscribeTransactions(
@@ -107,11 +107,12 @@ export async function createCardTransaction(
   for (let i = 0; i < installmentCount; i++) {
     const invoiceId = await getOrCreateInvoice(householdId, card, competencia)
     const txRef = doc(collection(db, 'households', householdId, 'transactions'))
+    const installmentDate = dateInCompetencia(competencia, data.date)
 
     const tx: Omit<Transaction, 'id'> = {
       type: data.type,
       amount: installmentAmount,
-      date: data.date,
+      date: installmentDate,
       description:
         installmentCount > 1
           ? `${data.description} (${i + 1}/${installmentCount})`.trim()
