@@ -12,6 +12,15 @@ export function formatDate(date: string | Date): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+/** e.g. "Terça-feira, 28" — used as day section headers in lists */
+export function formatDayHeader(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date + 'T12:00:00') : date
+  const weekday = d.toLocaleDateString('pt-BR', { weekday: 'long' })
+  const day = d.getDate()
+  const label = weekday.charAt(0).toUpperCase() + weekday.slice(1)
+  return `${label}, ${day}`
+}
+
 export function formatMonthYear(date: Date): string {
   return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 }
