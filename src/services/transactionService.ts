@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   deleteDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -15,6 +16,36 @@ import { updateAccountBalance } from '@/services/accountService'
 import { addToInvoiceTotal, getOrCreateInvoice } from '@/services/invoiceService'
 import { addMonthsToCompetencia, dateInCompetencia, getInvoiceCompetencia } from '@/lib/invoiceUtils'
 import type { CreditCard, Transaction } from '@/types'
+
+export function stripInstallmentSuffix(description: string): string {
+  return description.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim()
+}
+
+async function reversePaidEffects(householdId: string, tx: Transaction): Promise<void> {
+  if (tx.status !== 'paid') return
+
+  if (tx.paymentMethod === 'account' && tx.accountId) {
+    const delta = tx.type === 'income' ? -tx.amount : tx.amount
+    await updateAccountBalance(householdId, tx.accountId, delta)
+  }
+
+  if (tx.paymentMethod === 'card' && tx.invoiceId) {
+    await addToInvoiceTotal(householdId, tx.invoiceId, -tx.amount)
+  }
+}
+
+async function applyPaidEffects(householdId: string, tx: Transaction): Promise<void> {
+  if (tx.status !== 'paid') return
+
+  if (tx.paymentMethod === 'account' && tx.accountId) {
+    const delta = tx.type === 'income' ? tx.amount : -tx.amount
+    await updateAccountBalance(householdId, tx.accountId, delta)
+  }
+
+  if (tx.paymentMethod === 'card' && tx.invoiceId) {
+    await addToInvoiceTotal(householdId, tx.invoiceId, tx.amount)
+  }
+}
 
 export function subscribeTransactions(
   householdId: string,
@@ -77,6 +108,129 @@ export async function updateTransaction(
   data: Partial<Transaction>,
 ): Promise<void> {
   await updateDoc(doc(db, 'households', householdId, 'transactions', transactionId), data)
+}
+
+export interface TransactionEditInput {
+  type: Transaction['type']
+  amount: number
+  date: string
+  description: string
+  categoryId: string
+  subcategoryId?: string
+  paymentMethod: Transaction['paymentMethod']
+  accountId?: string
+  cardId?: string
+  status: Transaction['status']
+}
+
+/** Edit a single (non-group) transaction with balance/invoice side effects. */
+export async function editTransaction(
+  householdId: string,
+  oldTx: Transaction,
+  data: TransactionEditInput,
+): Promise<void> {
+  if (oldTx.installment && oldTx.installment.total > 1) {
+    throw new Error('Use editInstallmentGroup para parcelas')
+  }
+
+  await reversePaidEffects(householdId, oldTx)
+
+  const next: Transaction = {
+    ...oldTx,
+    type: data.type,
+    amount: data.amount,
+    date: data.date,
+    description: data.description,
+    categoryId: data.categoryId,
+    subcategoryId: data.subcategoryId,
+    paymentMethod: data.paymentMethod,
+    accountId: data.paymentMethod === 'account' ? data.accountId : undefined,
+    cardId: data.paymentMethod === 'card' ? oldTx.cardId : undefined,
+    invoiceId: data.paymentMethod === 'card' ? oldTx.invoiceId : undefined,
+    status: data.status,
+  }
+
+  await updateDoc(doc(db, 'households', householdId, 'transactions', oldTx.id), {
+    type: next.type,
+    amount: next.amount,
+    date: next.date,
+    description: next.description,
+    categoryId: next.categoryId,
+    subcategoryId: next.subcategoryId ?? null,
+    paymentMethod: next.paymentMethod,
+    accountId: next.accountId ?? null,
+    cardId: next.cardId ?? null,
+    invoiceId: next.invoiceId ?? null,
+    status: next.status,
+  })
+
+  await applyPaidEffects(householdId, next)
+}
+
+export interface InstallmentGroupEditInput {
+  description: string
+  categoryId: string
+  subcategoryId?: string
+  status: Transaction['status']
+  /** Total amount for the whole group (will be split across parcels). */
+  amountTotal: number
+}
+
+export async function getInstallmentGroup(
+  householdId: string,
+  groupId: string,
+): Promise<Transaction[]> {
+  const q = query(
+    collection(db, 'households', householdId, 'transactions'),
+    where('installment.groupId', '==', groupId),
+  )
+  const snap = await getDocs(q)
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as Transaction)
+    .sort((a, b) => (a.installment?.current ?? 0) - (b.installment?.current ?? 0))
+}
+
+export async function editInstallmentGroup(
+  householdId: string,
+  anyParcel: Transaction,
+  data: InstallmentGroupEditInput,
+): Promise<void> {
+  const groupId = anyParcel.installment?.groupId
+  if (!groupId || !anyParcel.installment) {
+    throw new Error('Lançamento não faz parte de um grupo de parcelas')
+  }
+
+  const group = await getInstallmentGroup(householdId, groupId)
+  if (group.length === 0) throw new Error('Grupo de parcelas não encontrado')
+
+  const total = anyParcel.installment.total
+  const parcelAmount = Math.round((data.amountTotal / total) * 100) / 100
+  const baseDescription = stripInstallmentSuffix(data.description)
+
+  for (const tx of group) {
+    await reversePaidEffects(householdId, tx)
+
+    const current = tx.installment?.current ?? 1
+    const description = `${baseDescription} (${current}/${total})`.trim()
+    const next: Transaction = {
+      ...tx,
+      amount: parcelAmount,
+      description,
+      categoryId: data.categoryId,
+      subcategoryId: data.subcategoryId,
+      status: data.status,
+    }
+
+    await updateDoc(doc(db, 'households', householdId, 'transactions', tx.id), {
+      amount: next.amount,
+      description: next.description,
+      categoryId: next.categoryId,
+      subcategoryId: next.subcategoryId ?? null,
+      status: next.status,
+    })
+
+    await applyPaidEffects(householdId, next)
+  }
 }
 
 export interface CardTransactionInput {
