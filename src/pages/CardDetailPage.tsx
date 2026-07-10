@@ -32,13 +32,13 @@ export function CardDetailPage() {
 
   const card = cards.find((c) => c.id === cardId)
   const cardInvoices = useMemo(
-    () => invoices.filter((inv) => inv.cardId === cardId).sort((a, b) => b.competencia.localeCompare(a.competencia)),
+    () => invoices.filter((inv) => inv.cardId === cardId).sort((a, b) => a.competencia.localeCompare(b.competencia)),
     [invoices, cardId],
   )
 
   const activeInvoice = selectedInvoiceId
     ? cardInvoices.find((inv) => inv.id === selectedInvoiceId)
-    : cardInvoices.find((inv) => inv.status !== 'paid') ?? cardInvoices[0]
+    : cardInvoices.find((inv) => inv.status !== 'paid') ?? cardInvoices[cardInvoices.length - 1]
 
   const invoiceTransactions = useMemo(
     () =>
