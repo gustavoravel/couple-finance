@@ -1,15 +1,18 @@
-import { useMemo, useState } from 'react'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Paperclip, Trash2 } from 'lucide-react'
+import { useMemo, useState, type MouseEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeftRight, Paperclip, Trash2 } from 'lucide-react'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { deleteTransaction } from '@/services/transactionService'
 import { deleteTransfer } from '@/services/transferService'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Card } from '@/components/ui/Card'
+import { Icon } from '@/components/ui/Icon'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { defaultFilters, mergeAndSort } from '@/lib/transactionFilters'
 import type { Transaction, Transfer } from '@/types'
 
 export function TransactionsPage() {
+  const navigate = useNavigate()
   const { household, accounts, categories, cards, transactions, transfers, members } = useHousehold()
   const [filters, setFilters] = useState(defaultFilters)
 
@@ -18,18 +21,22 @@ export function TransactionsPage() {
     [transactions, transfers, filters],
   )
 
-  const handleDeleteTx = async (tx: Transaction) => {
+  const handleDeleteTx = async (tx: Transaction, e: MouseEvent) => {
+    e.stopPropagation()
     if (!household || !confirm('Excluir este lançamento?')) return
     await deleteTransaction(household.id, tx)
   }
 
-  const handleDeleteTransfer = async (tr: Transfer) => {
+  const handleDeleteTransfer = async (tr: Transfer, e: MouseEvent) => {
+    e.stopPropagation()
     if (!household || !confirm('Excluir esta transferência?')) return
     await deleteTransfer(household.id, tr)
   }
 
+  const getCategory = (categoryId: string) => categories.find((c) => c.id === categoryId)
+
   const getCategoryName = (categoryId: string) =>
-    categories.find((c) => c.id === categoryId)?.name ?? 'Sem categoria'
+    getCategory(categoryId)?.name ?? 'Sem categoria'
 
   const getAccountName = (accountId: string) =>
     accounts.find((a) => a.id === accountId)?.name ?? 'Conta'
@@ -80,7 +87,7 @@ export function TransactionsPage() {
                 {formatCurrency(item.data.amount)}
               </p>
               <button
-                onClick={() => handleDeleteTransfer(item.data)}
+                onClick={(e) => handleDeleteTransfer(item.data, e)}
                 className="p-2 text-gray-300 hover:text-red-500 transition-colors"
                 aria-label="Excluir"
               >
@@ -88,19 +95,32 @@ export function TransactionsPage() {
               </button>
             </Card>
           ) : (
-            <Card key={`tx-${item.data.id}`} padding="sm" className="flex items-center gap-3">
-              <div
-                className={[
-                  'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-                  item.data.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500',
-                ].join(' ')}
-              >
-                {item.data.type === 'income' ? (
-                  <ArrowDownLeft className="w-5 h-5" />
-                ) : (
-                  <ArrowUpRight className="w-5 h-5" />
-                )}
-              </div>
+            <Card
+              key={`tx-${item.data.id}`}
+              padding="sm"
+              className="flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => navigate(`/lancamentos/${item.data.id}`)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  navigate(`/lancamentos/${item.data.id}`)
+                }
+              }}
+            >
+              {(() => {
+                const cat = getCategory(item.data.categoryId)
+                const color = cat?.color ?? (item.data.type === 'income' ? '#22C55E' : '#EF4444')
+                return (
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: `${color}22`, color }}
+                  >
+                    <Icon name={cat?.icon ?? (item.data.type === 'income' ? 'wallet' : 'tag')} size={20} />
+                  </div>
+                )
+              })()}
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 truncate">
                   {item.data.description || getCategoryName(item.data.categoryId)}
@@ -129,6 +149,7 @@ export function TransactionsPage() {
                   href={item.data.attachmentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                   className="p-2 text-gray-400 hover:text-primary transition-colors"
                   aria-label="Ver comprovante"
                 >
@@ -136,7 +157,7 @@ export function TransactionsPage() {
                 </a>
               )}
               <button
-                onClick={() => handleDeleteTx(item.data)}
+                onClick={(e) => handleDeleteTx(item.data, e)}
                 className="p-2 text-gray-300 hover:text-red-500 transition-colors"
                 aria-label="Excluir"
               >

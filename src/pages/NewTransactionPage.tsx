@@ -1,16 +1,23 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
-import { createTransaction, createCardTransaction, updateTransaction } from '@/services/transactionService'
+import {
+  createTransaction,
+  createCardTransaction,
+  editInstallmentGroup,
+  editTransaction,
+  stripInstallmentSuffix,
+  updateTransaction,
+} from '@/services/transactionService'
 import { createTransfer } from '@/services/transferService'
 import { createRecurrence } from '@/services/recurrenceService'
 import { uploadAttachment } from '@/services/storageService'
 import { advanceRunDate } from '@/lib/recurrenceUtils'
-import type { Recurrence } from '@/types'
+import type { Recurrence, Transaction } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -57,15 +64,30 @@ const transferSchema = z.object({
 type TxFormData = z.infer<typeof txSchema>
 type TransferFormData = z.infer<typeof transferSchema>
 
+function resolveMode(tx: Transaction, categories: { id: string; kind: string }[]): EntryMode {
+  if (tx.type === 'income') return 'income'
+  const cat = categories.find((c) => c.id === tx.categoryId)
+  if (cat?.kind === 'investment') return 'investment'
+  return 'expense'
+}
+
 export function NewTransactionPage() {
+  const { txId } = useParams<{ txId?: string }>()
+  const isEdit = Boolean(txId)
   const { user } = useAuth()
-  const { household, accounts, cards, categories } = useHousehold()
+  const { household, accounts, cards, categories, transactions } = useHousehold()
   const navigate = useNavigate()
   const [mode, setMode] = useState<EntryMode>('expense')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [attachment, setAttachment] = useState<File | null>(null)
   const [saveAsRecurrence, setSaveAsRecurrence] = useState(false)
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [hydrated, setHydrated] = useState(!isEdit)
+
+  const isInstallmentGroup = Boolean(
+    editingTx?.installment && editingTx.installment.total > 1,
+  )
 
   const txForm = useForm<TxFormData>({
     resolver: zodResolver(txSchema),
@@ -89,6 +111,45 @@ export function NewTransactionPage() {
     },
   })
 
+  useEffect(() => {
+    if (!isEdit || !txId) {
+      setHydrated(true)
+      return
+    }
+    const tx = transactions.find((t) => t.id === txId)
+    if (!tx) {
+      if (transactions.length > 0) {
+        setError('Lançamento não encontrado')
+        setHydrated(true)
+      }
+      return
+    }
+
+    setEditingTx(tx)
+    const nextMode = resolveMode(tx, categories)
+    setMode(nextMode)
+
+    const amount =
+      tx.installment && tx.installment.total > 1
+        ? Math.round(tx.amount * tx.installment.total * 100) / 100
+        : tx.amount
+
+    txForm.reset({
+      type: tx.type,
+      amount,
+      date: tx.date,
+      description: stripInstallmentSuffix(tx.description),
+      categoryId: tx.categoryId,
+      subcategoryId: tx.subcategoryId ?? '',
+      paymentMethod: tx.paymentMethod,
+      accountId: tx.accountId ?? accounts[0]?.id ?? '',
+      cardId: tx.cardId ?? cards[0]?.id ?? '',
+      installments: tx.installment?.total ?? 1,
+      status: tx.status,
+    })
+    setHydrated(true)
+  }, [isEdit, txId, transactions, categories, accounts, cards, txForm])
+
   const txType = txForm.watch('type')
   const categoryId = txForm.watch('categoryId')
   const paymentMethod = txForm.watch('paymentMethod')
@@ -108,6 +169,7 @@ export function NewTransactionPage() {
   const cardOptions = cards.map((c) => ({ value: c.id, label: c.name }))
 
   const switchMode = (m: EntryMode) => {
+    if (isEdit) return
     setMode(m)
     setError('')
     if (m !== 'transfer') {
@@ -124,7 +186,40 @@ export function NewTransactionPage() {
     setError('')
     setLoading(true)
     try {
-      let txId: string | undefined
+      if (isEdit && editingTx) {
+        if (isInstallmentGroup) {
+          await editInstallmentGroup(household.id, editingTx, {
+            description: data.description ?? '',
+            categoryId: data.categoryId,
+            subcategoryId: data.subcategoryId || undefined,
+            status: data.status,
+            amountTotal: data.amount,
+          })
+        } else {
+          await editTransaction(household.id, editingTx, {
+            type: data.type,
+            amount: data.amount,
+            date: data.date,
+            description: data.description ?? '',
+            categoryId: data.categoryId,
+            subcategoryId: data.subcategoryId || undefined,
+            paymentMethod: data.paymentMethod,
+            accountId: data.accountId,
+            cardId: data.cardId,
+            status: data.status,
+          })
+        }
+
+        if (attachment) {
+          const url = await uploadAttachment(household.id, editingTx.id, attachment)
+          await updateTransaction(household.id, editingTx.id, { attachmentUrl: url })
+        }
+
+        navigate('/lancamentos')
+        return
+      }
+
+      let newTxId: string | undefined
 
       if (data.paymentMethod === 'card') {
         const card = cards.find((c) => c.id === data.cardId)
@@ -141,9 +236,9 @@ export function NewTransactionPage() {
           createdBy: user.uid,
           installments: data.installments ?? 1,
         })
-        txId = ids[0]
+        newTxId = ids[0]
       } else {
-        txId = await createTransaction(household.id, {
+        newTxId = await createTransaction(household.id, {
           type: data.type,
           amount: data.amount,
           date: data.date,
@@ -157,9 +252,9 @@ export function NewTransactionPage() {
         })
       }
 
-      if (attachment && txId) {
-        const url = await uploadAttachment(household.id, txId, attachment)
-        await updateTransaction(household.id, txId, { attachmentUrl: url })
+      if (attachment && newTxId) {
+        const url = await uploadAttachment(household.id, newTxId, attachment)
+        await updateTransaction(household.id, newTxId, { attachmentUrl: url })
       }
 
       if (saveAsRecurrence && data.paymentMethod === 'account') {
@@ -186,7 +281,6 @@ export function NewTransactionPage() {
           },
           frequency: 'monthly',
           dayOfMonth: day,
-          // First occurrence already created as the transaction above — schedule next month
           nextRunDate: advanceRunDate(data.date, recurrenceBase),
           active: true,
           createdBy: user.uid,
@@ -223,34 +317,52 @@ export function NewTransactionPage() {
     }
   }
 
+  if (!hydrated) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <header>
-        <h1 className="text-xl font-bold text-gray-900">Novo lançamento</h1>
+        <h1 className="text-xl font-bold text-gray-900">
+          {isEdit ? 'Editar lançamento' : 'Novo lançamento'}
+        </h1>
+        {isInstallmentGroup && editingTx?.installment && (
+          <p className="text-sm text-amber-700 mt-1">
+            Alterações serão aplicadas às {editingTx.installment.total} parcelas do grupo.
+            Valor informado é o total da compra.
+          </p>
+        )}
       </header>
 
-      <div className="grid grid-cols-2 gap-2">
-        {([
-          { key: 'expense' as const, label: 'Saída', active: 'bg-red-500 text-white' },
-          { key: 'income' as const, label: 'Entrada', active: 'bg-green-500 text-white' },
-          { key: 'investment' as const, label: 'Investimento', active: 'bg-blue-600 text-white' },
-          { key: 'transfer' as const, label: 'Transferência', active: 'bg-primary text-white' },
-        ]).map(({ key, label, active }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => switchMode(key)}
-            className={[
-              'flex-1 py-3 rounded-xl text-sm font-semibold transition-colors',
-              mode === key ? active : 'bg-white text-gray-600 border border-gray-200',
-            ].join(' ')}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {!isEdit && (
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { key: 'expense' as const, label: 'Saída', active: 'bg-red-500 text-white' },
+            { key: 'income' as const, label: 'Entrada', active: 'bg-green-500 text-white' },
+            { key: 'investment' as const, label: 'Investimento', active: 'bg-blue-600 text-white' },
+            { key: 'transfer' as const, label: 'Transferência', active: 'bg-primary text-white' },
+          ]).map(({ key, label, active }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => switchMode(key)}
+              className={[
+                'flex-1 py-3 rounded-xl text-sm font-semibold transition-colors',
+                mode === key ? active : 'bg-white text-gray-600 border border-gray-200',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {mode === 'transfer' ? (
+      {mode === 'transfer' && !isEdit ? (
         <Card>
           <form onSubmit={transferForm.handleSubmit(onSubmitTransfer)} className="flex flex-col gap-4">
             <Input
@@ -301,14 +413,20 @@ export function NewTransactionPage() {
             <input type="hidden" {...txForm.register('type')} />
 
             <Input
-              label="Valor (R$)"
+              label={isInstallmentGroup ? 'Valor total (R$)' : 'Valor (R$)'}
               type="number"
               step="0.01"
               min="0"
               error={txForm.formState.errors.amount?.message}
               {...txForm.register('amount')}
             />
-            <Input label="Data" type="date" error={txForm.formState.errors.date?.message} {...txForm.register('date')} />
+            <Input
+              label="Data"
+              type="date"
+              disabled={isInstallmentGroup}
+              error={txForm.formState.errors.date?.message}
+              {...txForm.register('date')}
+            />
             <Input label="Descrição (opcional)" placeholder="Ex.: Supermercado" {...txForm.register('description')} />
             <Select
               label="Categoria"
@@ -335,6 +453,7 @@ export function NewTransactionPage() {
                     { value: 'account', label: 'Conta / débito' },
                     { value: 'card', label: 'Cartão de crédito' },
                   ]}
+                  disabled={isEdit}
                   error={txForm.formState.errors.paymentMethod?.message}
                   {...txForm.register('paymentMethod')}
                 />
@@ -347,17 +466,25 @@ export function NewTransactionPage() {
                           ? cardOptions
                           : [{ value: '', label: 'Cadastre um cartão primeiro' }]
                       }
+                      disabled={isEdit}
                       error={txForm.formState.errors.cardId?.message}
                       {...txForm.register('cardId')}
                     />
-                    <Input
-                      label="Parcelas"
-                      type="number"
-                      min="1"
-                      max="48"
-                      error={txForm.formState.errors.installments?.message}
-                      {...txForm.register('installments')}
-                    />
+                    {!isEdit && (
+                      <Input
+                        label="Parcelas"
+                        type="number"
+                        min="1"
+                        max="48"
+                        error={txForm.formState.errors.installments?.message}
+                        {...txForm.register('installments')}
+                      />
+                    )}
+                    {isInstallmentGroup && editingTx?.installment && (
+                      <p className="text-xs text-gray-500">
+                        Parcelado em {editingTx.installment.total}x · cartão e faturas permanecem iguais
+                      </p>
+                    )}
                   </>
                 )}
               </>
@@ -381,7 +508,7 @@ export function NewTransactionPage() {
               {...txForm.register('status')}
             />
 
-            {paymentMethod === 'account' && (
+            {!isEdit && paymentMethod === 'account' && (
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -406,6 +533,16 @@ export function NewTransactionPage() {
               {attachment && (
                 <p className="text-xs text-gray-400 mt-1">{attachment.name}</p>
               )}
+              {isEdit && editingTx?.attachmentUrl && !attachment && (
+                <a
+                  href={editingTx.attachmentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary mt-1 inline-block"
+                >
+                  Ver comprovante atual
+                </a>
+              )}
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
@@ -419,8 +556,13 @@ export function NewTransactionPage() {
                 (paymentMethod === 'card' && cards.length === 0)
               }
             >
-              {loading ? 'Salvando...' : 'Salvar lançamento'}
+              {loading ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Salvar lançamento'}
             </Button>
+            {isEdit && (
+              <Button type="button" variant="ghost" fullWidth onClick={() => navigate('/lancamentos')}>
+                Cancelar
+              </Button>
+            )}
           </form>
         </Card>
       )}

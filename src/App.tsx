@@ -76,6 +76,7 @@ export default function App() {
             >
               <Route index element={<DashboardPage />} />
               <Route path="lancamentos" element={<TransactionsPage />} />
+              <Route path="lancamentos/:txId" element={<NewTransactionPage />} />
               <Route path="novo" element={<NewTransactionPage />} />
               <Route path="contas" element={<AccountsPage />} />
               <Route path="cartoes" element={<CardsPage />} />
