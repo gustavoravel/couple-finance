@@ -17,6 +17,7 @@ import { RecurrencesPage } from '@/pages/RecurrencesPage'
 import { ReportsPage } from '@/pages/ReportsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { MorePage } from '@/pages/MorePage'
+import { CategoriesPage } from '@/pages/CategoriesPage'
 
 function LoadingScreen() {
   return (
@@ -84,6 +85,7 @@ export default function App() {
               <Route path="recorrencias" element={<RecurrencesPage />} />
               <Route path="relatorios" element={<ReportsPage />} />
               <Route path="mais" element={<MorePage />} />
+              <Route path="categorias" element={<CategoriesPage />} />
               <Route path="ajustes" element={<SettingsPage />} />
             </Route>
 

@@ -5,6 +5,7 @@ import {
   FileBarChart,
   RefreshCw,
   Settings,
+  Tags,
   Target,
   Wallet,
 } from 'lucide-react'
@@ -13,6 +14,7 @@ import { Card } from '@/components/ui/Card'
 const menuItems = [
   { to: '/painel', icon: CalendarDays, label: 'Painel mensal', description: 'Entradas, saídas e quanto sobra' },
   { to: '/contas', icon: Wallet, label: 'Contas', description: 'Saldos e contas do casal' },
+  { to: '/categorias', icon: Tags, label: 'Categorias', description: 'Ícones, cores e subcategorias' },
   { to: '/metas', icon: Target, label: 'Metas & Reserva', description: 'Objetivos e reserva de emergência' },
   { to: '/relatorios', icon: FileBarChart, label: 'Relatórios', description: 'Exportar CSV/PDF e importar' },
   { to: '/recorrencias', icon: RefreshCw, label: 'Recorrências', description: 'Salários e contas fixas' },
