@@ -22,6 +22,16 @@ export function addMonthsToCompetencia(competencia: string, months: number): str
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
+/** Advance a YYYY-MM-DD by N calendar months, clamping the day. */
+export function addMonthsToDate(isoDate: string, months: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  const date = new Date(year, month - 1 + months, 1)
+  const nextYear = date.getFullYear()
+  const nextMonth = date.getMonth() + 1
+  const clamped = clampDay(nextYear, nextMonth, day)
+  return `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(clamped).padStart(2, '0')}`
+}
+
 export function clampDay(year: number, month: number, day: number): number {
   const lastDay = new Date(year, month, 0).getDate()
   return Math.min(day, lastDay)

@@ -14,7 +14,7 @@ import {
 import { db } from '@/lib/firebase'
 import { updateAccountBalance } from '@/services/accountService'
 import { addToInvoiceTotal, getOrCreateInvoice } from '@/services/invoiceService'
-import { addMonthsToCompetencia, dateInCompetencia, getInvoiceCompetencia } from '@/lib/invoiceUtils'
+import { addMonthsToCompetencia, addMonthsToDate, getInvoiceCompetencia } from '@/lib/invoiceUtils'
 import type { CreditCard, Transaction } from '@/types'
 
 export function stripInstallmentSuffix(description: string): string {
@@ -261,7 +261,8 @@ export async function createCardTransaction(
   for (let i = 0; i < installmentCount; i++) {
     const invoiceId = await getOrCreateInvoice(householdId, card, competencia)
     const txRef = doc(collection(db, 'households', householdId, 'transactions'))
-    const installmentDate = dateInCompetencia(competencia, data.date)
+    // List/filter by purchase calendar month; invoices still follow closing-day competência
+    const installmentDate = addMonthsToDate(data.date, i)
 
     const tx: Omit<Transaction, 'id'> = {
       type: data.type,
