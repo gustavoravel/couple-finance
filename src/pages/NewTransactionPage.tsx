@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Card } from '@/components/ui/Card'
 import { toISODate } from '@/lib/format'
+import { addMonthsToCompetencia, formatCompetencia, getInvoiceCompetencia } from '@/lib/invoiceUtils'
 
 type EntryMode = 'expense' | 'income' | 'transfer' | 'investment'
 
@@ -153,6 +154,38 @@ export function NewTransactionPage() {
   const txType = txForm.watch('type')
   const categoryId = txForm.watch('categoryId')
   const paymentMethod = txForm.watch('paymentMethod')
+  const watchedDate = txForm.watch('date')
+  const watchedCardId = txForm.watch('cardId')
+  const watchedInstallments = txForm.watch('installments')
+
+  const selectedCard = cards.find((c) => c.id === watchedCardId)
+
+  const cardInvoiceHint = useMemo(() => {
+    if (paymentMethod !== 'card' || !selectedCard || !watchedDate) return null
+    const firstCompetencia = getInvoiceCompetencia(watchedDate, selectedCard.closingDay)
+    const installments = Math.max(1, Number(watchedInstallments) || 1)
+    const purchaseMonth = watchedDate.slice(0, 7)
+    const goesToNextCycle = firstCompetencia !== purchaseMonth
+
+    if (installments <= 1) {
+      return {
+        closingDay: selectedCard.closingDay,
+        firstCompetencia,
+        goesToNextCycle,
+        installments: 1,
+        lastCompetencia: firstCompetencia,
+      }
+    }
+
+    const lastCompetencia = addMonthsToCompetencia(firstCompetencia, installments - 1)
+    return {
+      closingDay: selectedCard.closingDay,
+      firstCompetencia,
+      goesToNextCycle,
+      installments,
+      lastCompetencia,
+    }
+  }, [paymentMethod, selectedCard, watchedDate, watchedInstallments])
 
   const filteredCategories = useMemo(() => {
     if (mode === 'investment') return categories.filter((c) => c.kind === 'investment')
@@ -421,12 +454,34 @@ export function NewTransactionPage() {
               {...txForm.register('amount')}
             />
             <Input
-              label="Data"
+              label={paymentMethod === 'card' ? 'Data do gasto' : 'Data'}
               type="date"
               disabled={isInstallmentGroup}
               error={txForm.formState.errors.date?.message}
               {...txForm.register('date')}
             />
+            {paymentMethod === 'card' && cardInvoiceHint && !isEdit && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <p>
+                  O lançamento fica no <strong>mês do gasto</strong>
+                  {watchedDate ? ` (${watchedDate.slice(5, 7)}/${watchedDate.slice(0, 4)})` : ''}.
+                </p>
+                <p className="mt-1">
+                  {cardInvoiceHint.goesToNextCycle
+                    ? `Como o fechamento é dia ${cardInvoiceHint.closingDay}, a competência vai para a fatura de `
+                    : `Fecha dia ${cardInvoiceHint.closingDay} · competência na fatura de `}
+                  <strong className="capitalize">{formatCompetencia(cardInvoiceHint.firstCompetencia)}</strong>
+                  {cardInvoiceHint.installments > 1 && (
+                    <>
+                      {' '}até{' '}
+                      <strong className="capitalize">{formatCompetencia(cardInvoiceHint.lastCompetencia)}</strong>
+                      {' '}({cardInvoiceHint.installments}x)
+                    </>
+                  )}
+                  .
+                </p>
+              </div>
+            )}
             <Input label="Descrição (opcional)" placeholder="Ex.: Supermercado" {...txForm.register('description')} />
             <Select
               label="Categoria"
