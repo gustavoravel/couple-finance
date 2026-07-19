@@ -20,7 +20,7 @@ import { useHousehold } from '@/contexts/HouseholdContext'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Card } from '@/components/ui/Card'
 import { formatCurrency, formatDate, getMonthKey } from '@/lib/format'
-import { formatCompetencia } from '@/lib/invoiceUtils'
+import { formatCompetencia, getInvoiceRemaining } from '@/lib/invoiceUtils'
 import {
   averageMonthlyExpense,
   budgetStatuses,
@@ -46,7 +46,7 @@ export function DashboardPage() {
   const openInvoices = useMemo(
     () =>
       invoices
-        .filter((inv) => inv.status !== 'paid' && inv.total > 0)
+        .filter((inv) => inv.status !== 'paid' && getInvoiceRemaining(inv) > 0)
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
     [invoices],
   )
@@ -278,7 +278,7 @@ export function DashboardPage() {
                       {formatCompetencia(inv.competencia)} · vence {formatDate(inv.dueDate)}
                     </p>
                   </div>
-                  <p className="font-semibold text-gray-900 shrink-0">{formatCurrency(inv.total)}</p>
+                  <p className="font-semibold text-gray-900 shrink-0">{formatCurrency(getInvoiceRemaining(inv))}</p>
                   <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                 </Link>
               )

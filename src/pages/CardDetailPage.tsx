@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowUpRight, CheckCircle2, CreditCard } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { payInvoice } from '@/services/invoiceService'
-import { getCardUsedLimit, formatCompetencia } from '@/lib/invoiceUtils'
+import { getCardUsedLimit, formatCompetencia, getInvoiceRemaining } from '@/lib/invoiceUtils'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { Input } from '@/components/ui/Input'
 import { formatCurrency, formatDate, toISODate } from '@/lib/format'
 import type { Invoice } from '@/types'
 
@@ -29,6 +30,7 @@ export function CardDetailPage() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
+  const [paymentAmount, setPaymentAmount] = useState('')
 
   const card = cards.find((c) => c.id === cardId)
   const cardInvoices = useMemo(
@@ -39,6 +41,18 @@ export function CardDetailPage() {
   const activeInvoice = selectedInvoiceId
     ? cardInvoices.find((inv) => inv.id === selectedInvoiceId)
     : cardInvoices.find((inv) => inv.status !== 'paid') ?? cardInvoices[cardInvoices.length - 1]
+
+  const remaining = activeInvoice ? getInvoiceRemaining(activeInvoice) : 0
+  const paidSoFar = activeInvoice?.paidAmount ?? 0
+
+  useEffect(() => {
+    if (!activeInvoice || activeInvoice.status === 'paid') {
+      setPaymentAmount('')
+      return
+    }
+    setPaymentAmount(String(getInvoiceRemaining(activeInvoice)))
+    setError('')
+  }, [activeInvoice?.id, activeInvoice?.total, activeInvoice?.paidAmount, activeInvoice?.status])
 
   const invoiceTransactions = useMemo(
     () =>
@@ -56,12 +70,28 @@ export function CardDetailPage() {
 
   const handlePay = async () => {
     if (!household || !user || !card || !activeInvoice) return
-    if (!confirm(`Pagar fatura de ${formatCurrency(activeInvoice.total)}?`)) return
+
+    const amount = parseFloat(paymentAmount.replace(',', '.'))
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Informe um valor válido')
+      return
+    }
+    if (amount > remaining) {
+      setError(`Valor maior que o saldo (${formatCurrency(remaining)})`)
+      return
+    }
+
+    const isFull = amount >= remaining
+    const label = isFull
+      ? `Pagar fatura integral de ${formatCurrency(amount)}?`
+      : `Adiantar ${formatCurrency(amount)}? O saldo da fatura cairá para ${formatCurrency(remaining - amount)} e o limite será liberado.`
+
+    if (!confirm(label)) return
 
     setError('')
     setPaying(true)
     try {
-      await payInvoice(household.id, activeInvoice, card, user.uid, toISODate(new Date()))
+      await payInvoice(household.id, activeInvoice, card, user.uid, toISODate(new Date()), amount)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao pagar fatura')
     } finally {
@@ -154,27 +184,66 @@ export function CardDetailPage() {
             </span>
           </div>
 
-          <p className="text-2xl font-bold text-gray-900 mb-4">
-            {formatCurrency(activeInvoice.total)}
+          <p className="text-2xl font-bold text-gray-900">
+            {formatCurrency(remaining)}
           </p>
+          {paidSoFar > 0 && activeInvoice.status !== 'paid' && (
+            <p className="text-xs text-gray-400 mb-4">
+              Total {formatCurrency(activeInvoice.total)} · já pago {formatCurrency(paidSoFar)}
+            </p>
+          )}
+          {paidSoFar === 0 && <div className="mb-4" />}
 
-          {activeInvoice.status !== 'paid' && activeInvoice.total > 0 && (
-            <>
-              {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
+          {activeInvoice.status !== 'paid' && remaining > 0 && (
+            <div className="flex flex-col gap-3">
+              <Input
+                label="Valor a pagar / adiantar (R$)"
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={remaining}
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaymentAmount(String(remaining))}
+                >
+                  Valor total
+                </Button>
+                {remaining > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPaymentAmount(String(Math.round((remaining / 2) * 100) / 100))}
+                  >
+                    Metade
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-gray-400">
+                Pode pagar parcial para adiantar e liberar limite. O saldo restante permanece na fatura.
+              </p>
+              {error && <p className="text-sm text-red-500">{error}</p>}
               <Button fullWidth onClick={handlePay} disabled={paying}>
                 {paying ? 'Processando...' : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    Pagar fatura
+                    {parseFloat(paymentAmount) >= remaining ? 'Pagar fatura' : 'Adiantar pagamento'}
                   </>
                 )}
               </Button>
-            </>
+            </div>
           )}
 
           {activeInvoice.status === 'paid' && activeInvoice.paidAt && (
             <p className="text-sm text-green-600">
               Paga em {formatDate(activeInvoice.paidAt)}
+              {paidSoFar > 0 && ` · ${formatCurrency(paidSoFar)}`}
             </p>
           )}
         </Card>

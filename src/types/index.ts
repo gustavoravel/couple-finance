@@ -97,6 +97,8 @@ export interface Invoice {
   closingDate: string
   dueDate: string
   total: number
+  /** Soma dos pagamentos/adiantamentos já feitos nesta fatura */
+  paidAmount?: number
   status: InvoiceStatus
   paidAt?: string
   paidFromAccountId?: string

@@ -13,7 +13,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { buildInvoiceDates } from '@/lib/invoiceUtils'
+import { buildInvoiceDates, getInvoiceRemaining } from '@/lib/invoiceUtils'
 import { createInvoicePayment } from '@/services/transferService'
 import type { CreditCard, Invoice } from '@/types'
 
@@ -90,29 +90,58 @@ export async function payInvoice(
   card: CreditCard,
   createdBy: string,
   paymentDate: string,
+  amount?: number,
 ): Promise<void> {
   if (invoice.status === 'paid') {
     throw new Error('Fatura já paga')
   }
-  if (invoice.total <= 0) {
+
+  const remaining = getInvoiceRemaining(invoice)
+  if (remaining <= 0) {
     throw new Error('Fatura sem valor a pagar')
   }
 
+  const paymentAmount =
+    amount === undefined
+      ? remaining
+      : Math.round(amount * 100) / 100
+
+  if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+    throw new Error('Informe um valor válido para pagar')
+  }
+  if (paymentAmount > remaining) {
+    throw new Error(`Valor maior que o saldo da fatura (${remaining.toFixed(2)})`)
+  }
+
+  const isFull = paymentAmount >= remaining
   const transferId = await createInvoicePayment(householdId, {
     fromAccountId: card.paymentAccountId,
     cardId: card.id,
-    amount: invoice.total,
+    amount: paymentAmount,
     date: paymentDate,
-    description: `Pagamento fatura ${card.name}`,
+    description: isFull
+      ? `Pagamento fatura ${card.name}`
+      : `Adiantamento fatura ${card.name}`,
     createdBy,
   })
 
-  await updateDoc(doc(db, 'households', householdId, 'invoices', invoice.id), {
-    status: 'paid',
-    paidAt: paymentDate,
-    paidFromAccountId: card.paymentAccountId,
-    paymentTransferId: transferId,
-  })
+  const newPaidAmount = Math.round(((invoice.paidAmount ?? 0) + paymentAmount) * 100) / 100
+
+  if (isFull) {
+    await updateDoc(doc(db, 'households', householdId, 'invoices', invoice.id), {
+      paidAmount: newPaidAmount,
+      paidFromAccountId: card.paymentAccountId,
+      paymentTransferId: transferId,
+      status: 'paid',
+      paidAt: paymentDate,
+    })
+  } else {
+    await updateDoc(doc(db, 'households', householdId, 'invoices', invoice.id), {
+      paidAmount: newPaidAmount,
+      paidFromAccountId: card.paymentAccountId,
+      paymentTransferId: transferId,
+    })
+  }
 }
 
 export async function closeDueInvoices(householdId: string, invoices: Invoice[]): Promise<number> {

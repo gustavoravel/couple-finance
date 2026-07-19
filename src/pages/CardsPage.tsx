@@ -4,7 +4,7 @@ import { CreditCard, Plus } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { createCard } from '@/services/cardService'
-import { getCardUsedLimit } from '@/lib/invoiceUtils'
+import { getCardUsedLimit, getInvoiceRemaining } from '@/lib/invoiceUtils'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -159,8 +159,8 @@ export function CardsPage() {
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
                     Disponível: {formatCurrency(Math.max(0, available))}
-                    {openInvoice && openInvoice.total > 0 && (
-                      <> · Fatura aberta: {formatCurrency(openInvoice.total)}</>
+                    {openInvoice && getInvoiceRemaining(openInvoice) > 0 && (
+                      <> · Fatura aberta: {formatCurrency(getInvoiceRemaining(openInvoice))}</>
                     )}
                   </p>
                 </div>

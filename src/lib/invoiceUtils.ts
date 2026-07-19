@@ -59,13 +59,21 @@ export function formatCompetencia(competencia: string): string {
   return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 }
 
+export function getInvoiceRemaining(invoice: {
+  total: number
+  paidAmount?: number
+}): number {
+  const paid = invoice.paidAmount ?? 0
+  return Math.max(0, Math.round((invoice.total - paid) * 100) / 100)
+}
+
 export function getCardUsedLimit(
-  invoices: Array<{ cardId: string; total: number; status: string }>,
+  invoices: Array<{ cardId: string; total: number; paidAmount?: number; status: string }>,
   cardId: string,
 ): number {
   return invoices
     .filter((inv) => inv.cardId === cardId && inv.status !== 'paid')
-    .reduce((sum, inv) => sum + inv.total, 0)
+    .reduce((sum, inv) => sum + getInvoiceRemaining(inv), 0)
 }
 
 export function buildInvoiceDates(competencia: string, card: CreditCard) {
