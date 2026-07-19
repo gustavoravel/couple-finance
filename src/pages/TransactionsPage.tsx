@@ -1,6 +1,6 @@
 import { useMemo, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeftRight, Paperclip, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, CreditCard, Paperclip, Trash2 } from 'lucide-react'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { deleteTransaction } from '@/services/transactionService'
 import { deleteTransfer } from '@/services/transferService'
@@ -59,6 +59,9 @@ export function TransactionsPage() {
   const getMemberName = (uid: string) =>
     members.find((m) => m.uid === uid)?.name ?? ''
 
+  const getCardName = (cardId?: string) =>
+    cards.find((c) => c.id === cardId)?.name ?? 'Cartão'
+
   return (
     <div className="flex flex-col gap-4">
       <header>
@@ -89,20 +92,49 @@ export function TransactionsPage() {
             {group.items.map((item) =>
               item.kind === 'transfer' ? (
                 <Card key={`tr-${item.data.id}`} padding="sm" className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-primary-50 text-primary">
-                    <ArrowLeftRight className="w-5 h-5" />
+                  <div
+                    className={[
+                      'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                      item.data.kind === 'invoice_payment'
+                        ? 'bg-amber-50 text-amber-600'
+                        : 'bg-primary-50 text-primary',
+                    ].join(' ')}
+                  >
+                    {item.data.kind === 'invoice_payment' ? (
+                      <CreditCard className="w-5 h-5" />
+                    ) : (
+                      <ArrowLeftRight className="w-5 h-5" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 truncate">
-                      {item.data.description || 'Transferência'}
+                      {item.data.description ||
+                        (item.data.kind === 'invoice_payment' ? 'Pagamento de fatura' : 'Transferência')}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {getAccountName(item.data.fromAccountId)}
-                      {item.data.toAccountId ? ` → ${getAccountName(item.data.toAccountId)}` : ''}
+                      {item.data.kind === 'invoice_payment' ? (
+                        <>
+                          {getAccountName(item.data.fromAccountId)}
+                          {' → '}
+                          {getCardName(item.data.cardId)}
+                          {' · Fatura'}
+                        </>
+                      ) : (
+                        <>
+                          {getAccountName(item.data.fromAccountId)}
+                          {item.data.toAccountId ? ` → ${getAccountName(item.data.toAccountId)}` : ''}
+                        </>
+                      )}
                       {getMemberName(item.data.createdBy) && ` · ${getMemberName(item.data.createdBy)}`}
                     </p>
                   </div>
-                  <p className="font-semibold shrink-0 text-primary">
+                  <p
+                    className={[
+                      'font-semibold shrink-0',
+                      item.data.kind === 'invoice_payment' ? 'text-red-500' : 'text-primary',
+                    ].join(' ')}
+                  >
+                    {item.data.kind === 'invoice_payment' ? '-' : ''}
                     {formatCurrency(item.data.amount)}
                   </p>
                   <button

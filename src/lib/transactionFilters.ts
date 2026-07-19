@@ -61,11 +61,17 @@ export function filterTransactions(transactions: Transaction[], filters: FilterS
 
 export function filterTransfers(transfers: Transfer[], filters: FilterState): Transfer[] {
   return transfers.filter((t) => {
-    if (t.kind !== 'transfer') return false
+    if (t.kind !== 'transfer' && t.kind !== 'invoice_payment') return false
     if (!inPeriod(t.date, filters)) return false
     if (filters.categoryId) return false
-    if (filters.accountId && t.fromAccountId !== filters.accountId && t.toAccountId !== filters.accountId) {
-      return false
+    if (filters.accountId) {
+      const matchesAccount =
+        t.fromAccountId === filters.accountId ||
+        t.toAccountId === filters.accountId
+      if (!matchesAccount) return false
+    }
+    if (filters.cardId) {
+      if (t.kind !== 'invoice_payment' || t.cardId !== filters.cardId) return false
     }
     if (filters.createdBy && t.createdBy !== filters.createdBy) return false
     if (filters.type === 'income' || filters.type === 'expense') return false
