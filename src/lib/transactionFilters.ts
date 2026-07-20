@@ -59,6 +59,11 @@ export function filterTransactions(transactions: Transaction[], filters: FilterS
   })
 }
 
+/** Conta / débito only — card purchases live on /cartoes */
+export function excludeCardPurchases(transactions: Transaction[]): Transaction[] {
+  return transactions.filter((t) => t.paymentMethod !== 'card')
+}
+
 export function filterTransfers(transfers: Transfer[], filters: FilterState): Transfer[] {
   return transfers.filter((t) => {
     if (t.kind !== 'transfer' && t.kind !== 'invoice_payment') return false

@@ -248,11 +248,16 @@ export function NewTransactionPage() {
           await updateTransaction(household.id, editingTx.id, { attachmentUrl: url })
         }
 
-        navigate('/lancamentos')
+        if (editingTx.paymentMethod === 'card' && editingTx.cardId) {
+          navigate(`/cartoes/${editingTx.cardId}`)
+        } else {
+          navigate('/lancamentos')
+        }
         return
       }
 
       let newTxId: string | undefined
+      let createdCardId: string | undefined
 
       if (data.paymentMethod === 'card') {
         const card = cards.find((c) => c.id === data.cardId)
@@ -270,6 +275,7 @@ export function NewTransactionPage() {
           installments: data.installments ?? 1,
         })
         newTxId = ids[0]
+        createdCardId = card.id
       } else {
         newTxId = await createTransaction(household.id, {
           type: data.type,
@@ -320,7 +326,11 @@ export function NewTransactionPage() {
         })
       }
 
-      navigate('/lancamentos')
+      if (createdCardId) {
+        navigate(`/cartoes/${createdCardId}`)
+      } else {
+        navigate('/lancamentos')
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao salvar lançamento')
     } finally {
@@ -614,7 +624,18 @@ export function NewTransactionPage() {
               {loading ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Salvar lançamento'}
             </Button>
             {isEdit && (
-              <Button type="button" variant="ghost" fullWidth onClick={() => navigate('/lancamentos')}>
+              <Button
+                type="button"
+                variant="ghost"
+                fullWidth
+                onClick={() =>
+                  navigate(
+                    editingTx?.paymentMethod === 'card' && editingTx.cardId
+                      ? `/cartoes/${editingTx.cardId}`
+                      : '/lancamentos',
+                  )
+                }
+              >
                 Cancelar
               </Button>
             )}

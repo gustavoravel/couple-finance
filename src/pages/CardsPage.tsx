@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { CreditCard, Plus } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
@@ -14,6 +14,7 @@ import { formatCurrency } from '@/lib/format'
 const cardColors = ['#7F3DFF', '#3B82F6', '#EC4899', '#F59E0B', '#6366F1', '#14B8A6']
 
 export function CardsPage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { household, accounts, cards, invoices } = useHousehold()
   const [showForm, setShowForm] = useState(false)
@@ -53,12 +54,19 @@ export function CardsPage() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Cartões</h1>
-          <p className="text-sm text-gray-500">{cards.length} cartão(ões)</p>
+          <p className="text-sm text-gray-500">
+            {cards.length} cartão(ões) · gastos e faturas por cartão
+          </p>
         </div>
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
-          <Plus className="w-4 h-4" />
-          Novo
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => navigate('/novo')}>
+            Novo gasto
+          </Button>
+          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+            <Plus className="w-4 h-4" />
+            Novo
+          </Button>
+        </div>
       </header>
 
       {showForm && (

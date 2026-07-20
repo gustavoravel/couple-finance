@@ -1,5 +1,5 @@
 import { useMemo, useState, type MouseEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeftRight, CreditCard, Paperclip, Trash2 } from 'lucide-react'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { deleteTransaction } from '@/services/transactionService'
@@ -8,7 +8,12 @@ import { FilterBar } from '@/components/filters/FilterBar'
 import { Card } from '@/components/ui/Card'
 import { Icon } from '@/components/ui/Icon'
 import { formatCurrency, formatDayHeader } from '@/lib/format'
-import { defaultFilters, mergeAndSort, type ListItem } from '@/lib/transactionFilters'
+import {
+  defaultFilters,
+  excludeCardPurchases,
+  mergeAndSort,
+  type ListItem,
+} from '@/lib/transactionFilters'
 import type { Transaction, Transfer } from '@/types'
 
 function groupByDate(items: ListItem[]): Array<{ date: string; items: ListItem[] }> {
@@ -29,9 +34,14 @@ export function TransactionsPage() {
   const { household, accounts, categories, cards, transactions, transfers, members } = useHousehold()
   const [filters, setFilters] = useState(defaultFilters)
 
+  const accountTransactions = useMemo(
+    () => excludeCardPurchases(transactions),
+    [transactions],
+  )
+
   const items = useMemo(
-    () => mergeAndSort(transactions, transfers, filters),
-    [transactions, transfers, filters],
+    () => mergeAndSort(accountTransactions, transfers, filters),
+    [accountTransactions, transfers, filters],
   )
 
   const groups = useMemo(() => groupByDate(items), [items])
@@ -66,7 +76,16 @@ export function TransactionsPage() {
     <div className="flex flex-col gap-4">
       <header>
         <h1 className="text-xl font-bold text-gray-900">Lançamentos</h1>
-        <p className="text-sm text-gray-500">{items.length} registros</p>
+        <p className="text-sm text-gray-500">
+          Contas e transferências · {items.length} registros
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          Gastos no cartão ficam em{' '}
+          <Link to="/cartoes" className="text-primary font-medium">
+            Cartões
+          </Link>
+          .
+        </p>
       </header>
 
       <FilterBar
@@ -74,7 +93,6 @@ export function TransactionsPage() {
         onChange={setFilters}
         categories={categories}
         accounts={accounts}
-        cards={cards}
         members={members}
       />
 
@@ -178,14 +196,8 @@ export function TransactionsPage() {
                     </p>
                     <p className="text-xs text-gray-400">
                       {getCategoryName(item.data.categoryId)}
-                      {item.data.paymentMethod === 'card' && item.data.cardId && (
-                        <> · {cards.find((c) => c.id === item.data.cardId)?.name ?? 'Cartão'}</>
-                      )}
-                      {item.data.paymentMethod === 'account' && item.data.accountId && (
-                        <> · {getAccountName(item.data.accountId)}</>
-                      )}
+                      {item.data.accountId && <> · {getAccountName(item.data.accountId)}</>}
                       {item.data.status === 'pending' && ' · Previsto'}
-                      {item.data.installment && ` · ${item.data.installment.current}/${item.data.installment.total}x`}
                       {item.data.recurrenceId && ' · Recorrente'}
                       {getMemberName(item.data.createdBy) && ` · ${getMemberName(item.data.createdBy)}`}
                     </p>

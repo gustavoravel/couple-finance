@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowUpRight, CheckCircle2, CreditCard } from 'lucide-react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, CheckCircle2, CreditCard, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { payInvoice } from '@/services/invoiceService'
+import { deleteTransaction } from '@/services/transactionService'
 import { getCardUsedLimit, formatCompetencia, getInvoiceRemaining } from '@/lib/invoiceUtils'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { Icon } from '@/components/ui/Icon'
 import { Input } from '@/components/ui/Input'
-import { formatCurrency, formatDate, toISODate } from '@/lib/format'
-import type { Invoice } from '@/types'
+import { formatCurrency, formatDate, formatDayHeader, toISODate } from '@/lib/format'
+import type { Invoice, Transaction } from '@/types'
 
 const statusLabels: Record<Invoice['status'], string> = {
   open: 'Aberta',
@@ -23,8 +25,20 @@ const statusColors: Record<Invoice['status'], string> = {
   paid: 'bg-green-50 text-green-600',
 }
 
+function groupByDate(txs: Transaction[]): Array<{ date: string; items: Transaction[] }> {
+  const sorted = [...txs].sort((a, b) => b.date.localeCompare(a.date))
+  const groups: Array<{ date: string; items: Transaction[] }> = []
+  for (const tx of sorted) {
+    const last = groups[groups.length - 1]
+    if (last && last.date === tx.date) last.items.push(tx)
+    else groups.push({ date: tx.date, items: [tx] })
+  }
+  return groups
+}
+
 export function CardDetailPage() {
   const { cardId } = useParams<{ cardId: string }>()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { household, accounts, cards, invoices, transactions, categories } = useHousehold()
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
@@ -62,11 +76,21 @@ export function CardDetailPage() {
     [transactions, activeInvoice],
   )
 
+  const invoiceGroups = useMemo(() => groupByDate(invoiceTransactions), [invoiceTransactions])
+
   const used = card ? getCardUsedLimit(invoices, card.id) : 0
   const paymentAccount = accounts.find((a) => a.id === card?.paymentAccountId)
 
+  const getCategory = (categoryId: string) => categories.find((c) => c.id === categoryId)
+
   const getCategoryName = (categoryId: string) =>
-    categories.find((c) => c.id === categoryId)?.name ?? 'Sem categoria'
+    getCategory(categoryId)?.name ?? 'Sem categoria'
+
+  const handleDeleteTx = async (tx: Transaction, e: MouseEvent) => {
+    e.stopPropagation()
+    if (!household || !confirm('Excluir este lançamento do cartão?')) return
+    await deleteTransaction(household.id, tx)
+  }
 
   const handlePay = async () => {
     if (!household || !user || !card || !activeInvoice) return
@@ -115,10 +139,15 @@ export function CardDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link to="/cartoes" className="flex items-center gap-2 text-sm text-gray-500">
-        <ArrowLeft className="w-4 h-4" />
-        Cartões
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link to="/cartoes" className="flex items-center gap-2 text-sm text-gray-500">
+          <ArrowLeft className="w-4 h-4" />
+          Cartões
+        </Link>
+        <Button size="sm" onClick={() => navigate('/novo')}>
+          Novo gasto
+        </Button>
+      </div>
 
       <Card className="text-white border-0" style={{ background: `linear-gradient(135deg, ${card.color}, ${card.color}cc)` }}>
         <div className="flex items-start justify-between mb-4">
@@ -250,31 +279,71 @@ export function CardDetailPage() {
       )}
 
       <div>
-        <h2 className="font-semibold text-gray-900 mb-2">Lançamentos da fatura</h2>
-        <div className="flex flex-col gap-2">
+        <h2 className="font-semibold text-gray-900 mb-2">
+          Gastos da fatura
+          {invoiceTransactions.length > 0 && (
+            <span className="text-sm font-normal text-gray-400"> · {invoiceTransactions.length}</span>
+          )}
+        </h2>
+        <div className="flex flex-col gap-5">
           {invoiceTransactions.length === 0 && (
             <Card>
-              <p className="text-center text-gray-400 py-6">Nenhum lançamento nesta fatura</p>
+              <p className="text-center text-gray-400 py-6">Nenhum gasto nesta fatura</p>
             </Card>
           )}
-          {invoiceTransactions.map((tx) => (
-            <Card key={tx.id} padding="sm" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-red-50 text-red-500">
-                <ArrowUpRight className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">
-                  {tx.description || getCategoryName(tx.categoryId)}
-                </p>
-                <p className="text-xs text-gray-400">
-                  {getCategoryName(tx.categoryId)} · {formatDate(tx.date)}
-                  {tx.installment && ` · ${tx.installment.current}/${tx.installment.total}x`}
-                </p>
-              </div>
-              <p className="font-semibold text-red-500 shrink-0">
-                -{formatCurrency(tx.amount)}
-              </p>
-            </Card>
+          {invoiceGroups.map((group) => (
+            <section key={group.date} className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-gray-700 px-1">
+                {formatDayHeader(group.date)}
+              </h3>
+              {group.items.map((tx) => {
+                const cat = getCategory(tx.categoryId)
+                const color = cat?.color ?? '#EF4444'
+                return (
+                  <Card
+                    key={tx.id}
+                    padding="sm"
+                    className="flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => navigate(`/lancamentos/${tx.id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate(`/lancamentos/${tx.id}`)
+                      }
+                    }}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: `${color}22`, color }}
+                    >
+                      <Icon name={cat?.icon ?? 'credit-card'} size={20} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">
+                        {tx.description || getCategoryName(tx.categoryId)}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {getCategoryName(tx.categoryId)}
+                        {tx.installment && ` · ${tx.installment.current}/${tx.installment.total}x`}
+                        {tx.status === 'pending' && ' · Previsto'}
+                      </p>
+                    </div>
+                    <p className="font-semibold text-red-500 shrink-0">
+                      -{formatCurrency(tx.amount)}
+                    </p>
+                    <button
+                      onClick={(e) => handleDeleteTx(tx, e)}
+                      className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                      aria-label="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </Card>
+                )
+              })}
+            </section>
           ))}
         </div>
       </div>
