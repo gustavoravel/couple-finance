@@ -4,11 +4,13 @@ import { OfflineBanner } from '@/components/layout/OfflineBanner'
 import { useRecurrenceProcessor } from '@/hooks/useRecurrenceProcessor'
 import { useDueReminders } from '@/hooks/useDueReminders'
 import { useInvoiceProcessor } from '@/hooks/useInvoiceProcessor'
+import { useCardInvoiceRepair } from '@/hooks/useCardInvoiceRepair'
 
 export function AppLayout() {
   useRecurrenceProcessor()
   useDueReminders()
   useInvoiceProcessor()
+  useCardInvoiceRepair()
 
   return (
     <div className="min-h-screen bg-surface flex">

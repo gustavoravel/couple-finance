@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CreditCard, Plus } from 'lucide-react'
+import { CreditCard, Plus, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { createCard } from '@/services/cardService'
+import { repairCardTransactionInvoiceLinks } from '@/services/cardTransactionRepair'
 import { getCardUsedLimit, getInvoiceRemaining } from '@/lib/invoiceUtils'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -16,7 +17,7 @@ const cardColors = ['#7F3DFF', '#3B82F6', '#EC4899', '#F59E0B', '#6366F1', '#14B
 export function CardsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { household, accounts, cards, invoices } = useHousehold()
+  const { household, accounts, cards, invoices, transactions } = useHousehold()
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [brand, setBrand] = useState('')
@@ -25,8 +26,31 @@ export function CardsPage() {
   const [dueDay, setDueDay] = useState('10')
   const [paymentAccountId, setPaymentAccountId] = useState(accounts[0]?.id ?? '')
   const [loading, setLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
 
   const accountOptions = accounts.map((a) => ({ value: a.id, label: a.name }))
+
+  const handleSync = async () => {
+    if (!household || syncing) return
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const result = await repairCardTransactionInvoiceLinks(household.id, cards, transactions)
+      localStorage.removeItem(`couple-finance:card-links-repaired:v2:${household.id}`)
+      setSyncMsg(
+        result.linked > 0
+          ? `${result.linked} gasto(s) vinculados às faturas.`
+          : result.alreadyLinked > 0
+            ? `Tudo certo — ${result.alreadyLinked} gasto(s) de cartão já estavam vinculados.`
+            : 'Nenhum gasto de cartão encontrado para vincular.',
+      )
+    } catch {
+      setSyncMsg('Não foi possível sincronizar. Tente de novo.')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const handleCreate = async () => {
     if (!household || !user || !name.trim() || !paymentAccountId) return
@@ -59,6 +83,10 @@ export function CardsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={handleSync} disabled={syncing || cards.length === 0}>
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Sync…' : 'Sync'}
+          </Button>
           <Button size="sm" variant="outline" onClick={() => navigate('/novo')}>
             Novo gasto
           </Button>
@@ -69,6 +97,11 @@ export function CardsPage() {
         </div>
       </header>
 
+      {syncMsg && (
+        <p className="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+          {syncMsg}
+        </p>
+      )}
       {showForm && (
         <Card>
           <h2 className="font-semibold text-gray-900 mb-4">Novo cartão</h2>
@@ -136,6 +169,11 @@ export function CardsPage() {
           const available = card.limit - used
           const usagePct = card.limit > 0 ? (used / card.limit) * 100 : 0
           const openInvoice = invoices.find((inv) => inv.cardId === card.id && inv.status === 'open')
+          const spendCount = transactions.filter(
+            (t) =>
+              t.cardId === card.id &&
+              (t.paymentMethod === 'card' || t.paymentMethod == null || !t.accountId),
+          ).length
 
           return (
             <Link key={card.id} to={`/cartoes/${card.id}`}>
@@ -151,6 +189,7 @@ export function CardsPage() {
                     <p className="font-medium text-gray-900">{card.name}</p>
                     <p className="text-xs text-gray-400">
                       Fecha dia {card.closingDay} · Vence dia {card.dueDay}
+                      {spendCount > 0 && ` · ${spendCount} gasto(s)`}
                     </p>
                   </div>
                   <div className="text-right shrink-0">

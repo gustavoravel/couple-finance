@@ -42,6 +42,7 @@ export function CardDetailPage() {
   const { user } = useAuth()
   const { household, accounts, cards, invoices, transactions, categories } = useHousehold()
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
+  const [listMode, setListMode] = useState<'invoice' | 'all'>('all')
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
   const [paymentAmount, setPaymentAmount] = useState('')
@@ -52,9 +53,47 @@ export function CardDetailPage() {
     [invoices, cardId],
   )
 
+  const invoiceTxCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const inv of cardInvoices) counts[inv.id] = 0
+    for (const tx of transactions) {
+      if (tx.cardId === cardId && tx.invoiceId && counts[tx.invoiceId] !== undefined) {
+        counts[tx.invoiceId]++
+      }
+    }
+    return counts
+  }, [cardInvoices, transactions, cardId])
+
+  const allCardTransactions = useMemo(
+    () =>
+      transactions.filter(
+        (t) =>
+          t.cardId === cardId &&
+          (t.paymentMethod === 'card' || t.paymentMethod == null || !t.accountId),
+      ),
+    [transactions, cardId],
+  )
+
+  const orphanTransactions = useMemo(
+    () => allCardTransactions.filter((t) => !t.invoiceId),
+    [allCardTransactions],
+  )
+
+  const defaultInvoiceId = useMemo(() => {
+    const unpaidWithTx = cardInvoices.find(
+      (inv) => inv.status !== 'paid' && (invoiceTxCounts[inv.id] ?? 0) > 0,
+    )
+    if (unpaidWithTx) return unpaidWithTx.id
+    const anyWithTx = [...cardInvoices].reverse().find((inv) => (invoiceTxCounts[inv.id] ?? 0) > 0)
+    if (anyWithTx) return anyWithTx.id
+    return cardInvoices.find((inv) => inv.status !== 'paid')?.id
+      ?? cardInvoices[cardInvoices.length - 1]?.id
+      ?? null
+  }, [cardInvoices, invoiceTxCounts])
+
   const activeInvoice = selectedInvoiceId
     ? cardInvoices.find((inv) => inv.id === selectedInvoiceId)
-    : cardInvoices.find((inv) => inv.status !== 'paid') ?? cardInvoices[cardInvoices.length - 1]
+    : cardInvoices.find((inv) => inv.id === defaultInvoiceId)
 
   const remaining = activeInvoice ? getInvoiceRemaining(activeInvoice) : 0
   const paidSoFar = activeInvoice?.paidAmount ?? 0
@@ -76,7 +115,10 @@ export function CardDetailPage() {
     [transactions, activeInvoice],
   )
 
-  const invoiceGroups = useMemo(() => groupByDate(invoiceTransactions), [invoiceTransactions])
+  const displayedTransactions =
+    listMode === 'all' ? allCardTransactions : invoiceTransactions
+
+  const displayGroups = useMemo(() => groupByDate(displayedTransactions), [displayedTransactions])
 
   const used = card ? getCardUsedLimit(invoices, card.id) : 0
   const paymentAccount = accounts.find((a) => a.id === card?.paymentAccountId)
@@ -179,23 +221,39 @@ export function CardDetailPage() {
           {cardInvoices.length === 0 && (
             <p className="text-sm text-gray-400">Nenhuma fatura ainda</p>
           )}
-          {cardInvoices.map((inv) => (
-            <button
-              key={inv.id}
-              type="button"
-              onClick={() => setSelectedInvoiceId(inv.id)}
-              className={[
-                'shrink-0 px-3 py-2 rounded-xl text-sm font-medium border transition-colors',
-                activeInvoice?.id === inv.id
-                  ? 'bg-primary-50 border-primary text-primary'
-                  : 'bg-white border-gray-200 text-gray-600',
-              ].join(' ')}
-            >
-              {formatCompetencia(inv.competencia)}
-            </button>
-          ))}
+          {cardInvoices.map((inv) => {
+            const count = invoiceTxCounts[inv.id] ?? 0
+            return (
+              <button
+                key={inv.id}
+                type="button"
+                onClick={() => {
+                  setSelectedInvoiceId(inv.id)
+                  setListMode('invoice')
+                }}
+                className={[
+                  'shrink-0 px-3 py-2 rounded-xl text-sm font-medium border transition-colors',
+                  activeInvoice?.id === inv.id && listMode === 'invoice'
+                    ? 'bg-primary-50 border-primary text-primary'
+                    : 'bg-white border-gray-200 text-gray-600',
+                ].join(' ')}
+              >
+                {formatCompetencia(inv.competencia)}
+                {count > 0 ? ` · ${count}` : ''}
+              </button>
+            )
+          })}
         </div>
       </div>
+
+      {orphanTransactions.length > 0 && (
+        <Card padding="sm" className="bg-amber-50 border-amber-100">
+          <p className="text-sm text-amber-800">
+            {orphanTransactions.length} gasto(s) antigo(s) sem fatura vinculada — a sincronização automática
+            deve religá-los em instantes. Use a aba “Todos”.
+          </p>
+        </Card>
+      )}
 
       {activeInvoice && (
         <Card>
@@ -279,19 +337,45 @@ export function CardDetailPage() {
       )}
 
       <div>
-        <h2 className="font-semibold text-gray-900 mb-2">
-          Gastos da fatura
-          {invoiceTransactions.length > 0 && (
-            <span className="text-sm font-normal text-gray-400"> · {invoiceTransactions.length}</span>
-          )}
-        </h2>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="font-semibold text-gray-900">
+            Gastos
+            {displayedTransactions.length > 0 && (
+              <span className="text-sm font-normal text-gray-400"> · {displayedTransactions.length}</span>
+            )}
+          </h2>
+          <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm">
+            <button
+              type="button"
+              onClick={() => setListMode('all')}
+              className={[
+                'px-3 py-1.5 font-medium transition-colors',
+                listMode === 'all' ? 'bg-primary text-white' : 'bg-white text-gray-600',
+              ].join(' ')}
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              onClick={() => setListMode('invoice')}
+              className={[
+                'px-3 py-1.5 font-medium transition-colors',
+                listMode === 'invoice' ? 'bg-primary text-white' : 'bg-white text-gray-600',
+              ].join(' ')}
+            >
+              Fatura
+            </button>
+          </div>
+        </div>
         <div className="flex flex-col gap-5">
-          {invoiceTransactions.length === 0 && (
+          {displayedTransactions.length === 0 && (
             <Card>
-              <p className="text-center text-gray-400 py-6">Nenhum gasto nesta fatura</p>
+              <p className="text-center text-gray-400 py-6">
+                {listMode === 'all' ? 'Nenhum gasto neste cartão' : 'Nenhum gasto nesta fatura'}
+              </p>
             </Card>
           )}
-          {invoiceGroups.map((group) => (
+          {displayGroups.map((group) => (
             <section key={group.date} className="flex flex-col gap-2">
               <h3 className="text-sm font-semibold text-gray-700 px-1">
                 {formatDayHeader(group.date)}
@@ -299,6 +383,7 @@ export function CardDetailPage() {
               {group.items.map((tx) => {
                 const cat = getCategory(tx.categoryId)
                 const color = cat?.color ?? '#EF4444'
+                const inv = tx.invoiceId ? cardInvoices.find((i) => i.id === tx.invoiceId) : null
                 return (
                   <Card
                     key={tx.id}
@@ -327,6 +412,8 @@ export function CardDetailPage() {
                       <p className="text-xs text-gray-400">
                         {getCategoryName(tx.categoryId)}
                         {tx.installment && ` · ${tx.installment.current}/${tx.installment.total}x`}
+                        {listMode === 'all' && inv && ` · ${formatCompetencia(inv.competencia)}`}
+                        {!tx.invoiceId && ' · sem fatura'}
                         {tx.status === 'pending' && ' · Previsto'}
                       </p>
                     </div>
